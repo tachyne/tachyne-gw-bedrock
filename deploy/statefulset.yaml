@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: gw
-          image: github.com/tachyne/tachyne-gw-bedrock:latest
+          image: ghcr.io/tachyne/tachyne-gw-bedrock:latest
           imagePullPolicy: Always
           env:
             - name: POD_NAME
