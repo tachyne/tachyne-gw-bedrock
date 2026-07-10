@@ -60,7 +60,15 @@ var overworldRange = cube.Range{minY, minY + sections*16 - 1}
 func renderChunk(h attach.ChunkHeader, body *attach.ChunkBody) *packet.LevelChunk {
 	c := chunk.New(registry{}, overworldRange)
 
-	for sec := 0; sec < sections; sec++ {
+	// A TALL Java world (earth mode at true vertical scale) exceeds Bedrock's
+	// hard -64..320 overworld: render the bottom 24 sections and clamp the
+	// rest away — Bedrock players see summits plateau at y=319. Platform
+	// limit, not a bug.
+	secs := h.SectionCount()
+	if secs > sections {
+		secs = sections
+	}
+	for sec := 0; sec < secs; sec++ {
 		blocks := body.BlockStates[sec*4096 : (sec+1)*4096]
 		baseY := int16(minY + sec*16)
 
