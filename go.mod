@@ -12,7 +12,6 @@ require (
 
 require (
 	github.com/brentp/intintmap v0.0.0-20251106190759-56907b1f8479 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
 	github.com/df-mc/go-nethernet v1.0.17 // indirect
 	github.com/df-mc/go-playfab v1.0.0 // indirect
@@ -23,7 +22,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
-	github.com/pelletier/go-toml v1.9.5 // indirect
+	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/pion/datachannel v1.6.0 // indirect
 	github.com/pion/dtls/v3 v3.1.2 // indirect
 	github.com/pion/ice/v4 v4.2.1 // indirect
@@ -45,8 +44,6 @@ require (
 	github.com/wlynxg/anet v0.0.5 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20250103183323-7d7fa50e5329 // indirect
-	golang.org/x/image v0.21.0 // indirect
-	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
