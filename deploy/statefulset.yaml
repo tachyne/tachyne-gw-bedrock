@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tachyne-gw-bedrock
+  namespace: tachyne
+  labels:
+    app.kubernetes.io/name: tachyne
+    app.kubernetes.io/component: gw-bedrock
+    app.kubernetes.io/part-of: tachyne
+spec:
+  serviceName: tachyne-gw-bedrock-hl
+  # RakNet is stateful UDP: keep a single replica until per-flow affinity
+  # across replicas is verified (UDP conntrack pins flows, but externalIPs +
+  # Local traffic policy with >1 replica needs testing first).
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tachyne
+      app.kubernetes.io/component: gw-bedrock
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tachyne
+        app.kubernetes.io/component: gw-bedrock
+        app.kubernetes.io/part-of: tachyne
+    spec:
+      containers:
+        - name: gw
+          image: github.com/tachyne/tachyne-gw-bedrock:latest
+          imagePullPolicy: Always
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TACHYNE_ACCESS_URL
+              value: http://tachyne-access.tachyne.svc.cluster.local:8080
+            - name: TACHYNE_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tachyne-access-token
+                  key: token
+            - name: TACHYNE_BACKEND # login pod (west shard)
+              value: tachyne-world-0.tachyne-world-hl.tachyne.svc.cluster.local:25500
+            - name: TACHYNE_WORLD_PATTERN # dial pattern for the destination shard on handover
+              value: tachyne-world-%d.tachyne-world-hl.tachyne.svc.cluster.local:25500
+            - name: TACHYNE_ATTACH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tachyne-attach-token
+                  key: token
+          ports:
+            - containerPort: 19132
+              name: minecraft
+              protocol: UDP
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+      imagePullSecrets:
+        - name: forgejo-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 10

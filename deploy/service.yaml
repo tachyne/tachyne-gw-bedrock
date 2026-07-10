@@ -1,0 +1,42 @@
+# Headless service governing the StatefulSet (stable per-pod DNS:
+# tachyne-gw-bedrock-0.tachyne-gw-bedrock-hl.tachyne.svc).
+apiVersion: v1
+kind: Service
+metadata:
+  name: tachyne-gw-bedrock-hl
+  namespace: tachyne
+  labels:
+    app.kubernetes.io/name: tachyne
+    app.kubernetes.io/component: gw-bedrock
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: tachyne
+    app.kubernetes.io/component: gw-bedrock
+  ports:
+    - name: minecraft
+      port: 19132
+      protocol: UDP
+---
+# Internal service. Bedrock clients do NOT reach this pod directly anymore —
+# tachyne-ingress owns the public 19132/udp entrypoint and forwards datagrams
+# here (per-client UDP session). This is a plain in-cluster ClusterIP so the
+# gateway pods are not publicly exposed and hardening lives at the ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: tachyne-gw-bedrock
+  namespace: tachyne
+  labels:
+    app.kubernetes.io/name: tachyne
+    app.kubernetes.io/component: gw-bedrock
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tachyne
+    app.kubernetes.io/component: gw-bedrock
+  ports:
+    - name: minecraft
+      port: 19132
+      targetPort: minecraft
+      protocol: UDP
