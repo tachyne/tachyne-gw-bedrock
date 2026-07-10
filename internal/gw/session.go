@@ -34,7 +34,7 @@ var entityIdentifiersDat []byte
 const playerEyeOffset = 1.62
 
 const (
-	viewRadius = 6 // default chunk radius when the client hasn't asked yet
+	viewRadius = 6  // default chunk radius when the client hasn't asked yet
 	viewCap    = 32 // ceiling — matches the world pod's attach maxRadius (raised for earth-mode vistas)
 )
 
