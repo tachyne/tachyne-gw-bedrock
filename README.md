@@ -16,6 +16,10 @@ are welcome too: see [CONTRIBUTING.md](CONTRIBUTING.md).
 brings up the whole stack in one command — Docker Compose or Kubernetes,
 classic infinite survival by default, real-Cape-Town earth mode as a variant.
 
+**What's implemented?** Gameplay features live in the world engine, not the
+gateways — see [tachyne-world's feature matrix](https://github.com/tachyne/tachyne-world#what-to-expect-vanilla-parity-at-a-glance)
+for what to expect (implemented / partial / missing) as a player.
+
 
 
 
@@ -88,7 +92,8 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   (PlayerAuthInput → engine, absolute renders back), time, teleport, and the
   interaction bridge (melee/dig/place/use-item/hotbar/sneak via
   InventoryTransaction + PlayerAuthInput BlockActions).
-- NOT YET: hurt/death animations,
+- NOT YET: Java advancement toasts/screen (completions reach Bedrock
+  players as chat announcements only), hurt/death animations,
   inventory/windows rendering, equipment/metadata rendering, health/hunger/XP
   (UpdateAttributes), sounds/particles, death/respawn flow, nether/end
   (ChangeDimension + per-dimension chunk ranges — engine chunks are 24
