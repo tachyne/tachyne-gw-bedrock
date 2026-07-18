@@ -92,6 +92,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tachyne/tachyne-common v0.1.1-0.20260718131854-868e75afd101 h1:+vYHGHMPVuq+tgHBJhoDZklV0PEjp1A7zMgeL3yJoW0=
 github.com/tachyne/tachyne-common v0.1.1-0.20260718131854-868e75afd101/go.mod h1:0fDSCW2H9ZkF560RmWM3DFEPmW0PCdlvWdmxVVaINXU=
+github.com/tachyne/tachyne-common v0.1.1-0.20260718143442-eb762e027cd2 h1:t2d8Kn3yujmQwcTu8TZSeIrNojPL2eDHj3KgpGTjj+g=
+github.com/tachyne/tachyne-common v0.1.1-0.20260718143442-eb762e027cd2/go.mod h1:0fDSCW2H9ZkF560RmWM3DFEPmW0PCdlvWdmxVVaINXU=
 github.com/wlynxg/anet v0.0.5 h1:J3VJGi1gvo0JwZ/P1/Yc/8p63SoW98B5dHkYDmpgvvU=
 github.com/wlynxg/anet v0.0.5/go.mod h1:eay5PRQr7fIVAMbTbchTnO9gG65Hg/uYGdc7mguHxoA=
 golang.org/x/crypto v0.48.0 h1:/VRzVqiRSggnhY7gNRxPauEQ5Drw9haKdM0jqfcCFts=

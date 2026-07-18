@@ -235,10 +235,17 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				var e attach.Chat
 				if json.Unmarshal(payload, &e) == nil {
 					tt := byte(packet.TextTypeRaw)
-					if e.ActionBar {
+					msg := e.Text
+					switch {
+					case e.ActionBar:
 						tt = packet.TextTypeTip
+					case e.Sender != "":
+						// Player chat: the Java path renders "<sender> msg" via
+						// profileless_chat; Bedrock has no equivalent, so compose the
+						// same line here (Text is just the message when Sender is set).
+						msg = "<" + e.Sender + "> " + e.Text
 					}
-					c.WritePacket(&packet.Text{TextType: tt, Message: e.Text})
+					c.WritePacket(&packet.Text{TextType: tt, Message: msg})
 				}
 			case attach.MsgBlockSet:
 				var e attach.BlockSet
