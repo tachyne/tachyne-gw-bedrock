@@ -99,7 +99,8 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   (ChangeDimension + per-dimension chunk ranges — engine chunks are 24
   sections everywhere; Bedrock nether is 8), item entities (AddItemActor),
   boat wood variants, real Java skin → Bedrock skin conversion, on_ground
-  derivation (currently always true → no Bedrock fall damage).
+  derivation (a Y-stability heuristic rather than real ground detection, so
+  Bedrock fall damage is unreliable).
 
 ## Deployment
 
