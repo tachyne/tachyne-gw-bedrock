@@ -319,6 +319,31 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						})
 					}
 				}
+			case attach.MsgEntityLink:
+				// Leashes are METADATA on Bedrock, not an actor link: the
+				// EntityLink packet only models riding (Remove/Rider/Passenger),
+				// while a lead is the leashed entity's LeashHolder key plus the
+				// Leashed flag.
+				//
+				// The flags word is rebuilt from baseMetadata rather than set
+				// bare, because SetActorData merges by KEY: a flags value
+				// carrying only the leash bit would clear this mob's gravity,
+				// collision and breathing along with it.
+				var e attach.EntityLink
+				if json.Unmarshal(payload, &e) != nil {
+					break
+				}
+				m := baseMetadata(0, 0)
+				if e.Holder != 0 {
+					m[protocol.EntityDataKeyLeashHolder] = int64(e.Holder)
+					m.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagLeashed)
+				} else {
+					m[protocol.EntityDataKeyLeashHolder] = int64(-1) // no holder
+				}
+				c.WritePacket(&packet.SetActorData{
+					EntityRuntimeID: rt(e.Leashed),
+					EntityMetadata:  m,
+				})
 			case attach.MsgEntityMove:
 				var e attach.EntityMove
 				if json.Unmarshal(payload, &e) == nil {
