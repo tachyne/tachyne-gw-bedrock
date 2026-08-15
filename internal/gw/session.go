@@ -201,6 +201,11 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 
 	errs := make(chan error, 2)
 
+	// The window mirror is touched by BOTH goroutines below — the world reader
+	// writes what the engine sends, the client reader resolves stack requests
+	// against it — so it carries its own lock rather than living in either.
+	mirror := newInvMirror()
+
 	// World → client.
 	go func() {
 		ents := map[int32]*entState{}  // remote entities the client renders
@@ -318,6 +323,20 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							EntityMetadata: baseMetadata(0, 0),
 						})
 					}
+				}
+			case attach.MsgWindowItems:
+				// Only the player's own window for now: containers need
+				// ContainerOpen and a per-window slot map of their own.
+				var e attach.WindowItems
+				if json.Unmarshal(payload, &e) == nil && e.ID == 0 {
+					mirror.setAll(e.Slots, e.Cursor)
+					sendPlayerInventory(c, e.Slots)
+				}
+			case attach.MsgWindowSlot:
+				var e attach.WindowSlot
+				if json.Unmarshal(payload, &e) == nil && e.ID == 0 {
+					mirror.set(e.Slot, e.Item)
+					sendInventorySlot(c, e.Slot, e.Item)
 				}
 			case attach.MsgEntityLink:
 				// Leashes are METADATA on Bedrock, not an actor link: the
@@ -521,6 +540,16 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					ccx, ccz = ncx, ncz
 					publish(x, y, z, viewDist.Load())
 					b.Write(attach.MsgWant, attach.Want{CX: ccx, CZ: ccz, Radius: viewDist.Load(), Dim: curDim.Load()})
+				}
+			case *packet.ItemStackRequest:
+				// Bedrock's transactional inventory, resolved against our copy
+				// of the window and reported to the engine as a Java click.
+				for _, req := range p.Requests {
+					changed, ok := mirror.applyRequest(req)
+					if ok {
+						b.Write(attach.MsgWindowClick, mirror.clickFor(changed))
+					}
+					respondStackRequest(c, req.RequestID, mirror, changed, ok)
 				}
 			case *packet.InventoryTransaction:
 				switch td := p.TransactionData.(type) {
