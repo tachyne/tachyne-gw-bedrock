@@ -115,45 +115,51 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 	}); err != nil {
 		return fmt.Errorf("start game: %w", err)
 	}
-	// Real actor identifiers (gophertunnel only sends empty defaults): needed
-	// before AddActor renders anything.
-	c.WritePacket(&packet.AvailableActorIdentifiers{SerialisedEntityIdentifiers: entityIdentifiersDat})
-	// Real biome definitions: gophertunnel's empty default leaves the client
-	// with zero resolvable biomes, which renders the whole world black.
-	biomeDefs, biomeStrs := dfworld.BiomeDefinitions()
-	c.WritePacket(&packet.BiomeDefinitionList{BiomeDefinitions: biomeDefs, StringList: biomeStrs})
-	// Abilities + attributes: vanilla/dragonfly/PMMP all send these right
-	// after spawn; without them the client's self-physics defaults are not
-	// dependable.
+	// Spawn-time packets, in order. Each used to be fire-and-forget; a client
+	// that dropped during them was only noticed once its read side failed.
 	abilities := uint32(protocol.AbilityBuild | protocol.AbilityMine |
 		protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers |
 		protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs)
 	if welcome.Gamemode == 1 { // creative
 		abilities |= protocol.AbilityMayFly | protocol.AbilityInstantBuild
 	}
-	c.WritePacket(&packet.UpdateAbilities{AbilityData: protocol.AbilityData{
-		EntityUniqueID:     int64(welcome.EID),
-		PlayerPermissions:  packet.PermissionLevelMember,
-		CommandPermissions: protocol.CommandPermissionLevelAny,
-		Layers: []protocol.AbilityLayer{{
-			Type:             protocol.AbilityLayerTypeBase,
-			Abilities:        protocol.AbilityCount - 1,
-			Values:           abilities,
-			FlySpeed:         protocol.AbilityBaseFlySpeed,
-			VerticalFlySpeed: 1,
-			WalkSpeed:        protocol.AbilityBaseWalkSpeed,
+	biomeDefs, biomeStrs := dfworld.BiomeDefinitions()
+	if err := sendAll(c,
+		// Real actor identifiers (gophertunnel only sends empty defaults):
+		// needed before AddActor renders anything.
+		&packet.AvailableActorIdentifiers{SerialisedEntityIdentifiers: entityIdentifiersDat},
+		// Real biome definitions: gophertunnel's empty default leaves the
+		// client with zero resolvable biomes, which renders the world black.
+		&packet.BiomeDefinitionList{BiomeDefinitions: biomeDefs, StringList: biomeStrs},
+		// Abilities + attributes: vanilla/dragonfly/PMMP all send these right
+		// after spawn; without them the client's self-physics defaults are
+		// not dependable.
+		&packet.UpdateAbilities{AbilityData: protocol.AbilityData{
+			EntityUniqueID:     int64(welcome.EID),
+			PlayerPermissions:  packet.PermissionLevelMember,
+			CommandPermissions: protocol.CommandPermissionLevelAny,
+			Layers: []protocol.AbilityLayer{{
+				Type:             protocol.AbilityLayerTypeBase,
+				Abilities:        protocol.AbilityCount - 1,
+				Values:           abilities,
+				FlySpeed:         protocol.AbilityBaseFlySpeed,
+				VerticalFlySpeed: 1,
+				WalkSpeed:        protocol.AbilityBaseWalkSpeed,
+			}},
 		}},
-	}})
-	c.WritePacket(&packet.UpdateAttributes{
-		EntityRuntimeID: rt(welcome.EID),
-		Attributes: []protocol.Attribute{
-			{AttributeValue: protocol.AttributeValue{Name: "minecraft:health", Value: 20, Max: 20}, DefaultMax: 20, Default: 20},
-			{AttributeValue: protocol.AttributeValue{Name: "minecraft:movement", Value: 0.1, Max: 3.4e38}, DefaultMax: 3.4e38, Default: 0.1},
+		&packet.UpdateAttributes{
+			EntityRuntimeID: rt(welcome.EID),
+			Attributes: []protocol.Attribute{
+				{AttributeValue: protocol.AttributeValue{Name: "minecraft:health", Value: 20, Max: 20}, DefaultMax: 20, Default: 20},
+				{AttributeValue: protocol.AttributeValue{Name: "minecraft:movement", Value: 0.1, Max: 3.4e38}, DefaultMax: 3.4e38, Default: 0.1},
+			},
 		},
-	})
-	// Self entity metadata: the client's OWN physics honors these flags —
-	// without has_gravity it glides at a fixed height and cannot jump.
-	c.WritePacket(&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: baseMetadata(0.6, 1.8)})
+		// Self entity metadata: the client's OWN physics honors these flags —
+		// without has_gravity it glides at a fixed height and cannot jump.
+		&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: baseMetadata(0.6, 1.8)},
+	); err != nil {
+		return fmt.Errorf("spawn packets: %w", err)
+	}
 
 	log.Printf("%s: %q spawned (%.1f,%.1f,%.1f)", c.RemoteAddr(), name, spawn.X, spawn.Y, spawn.Z)
 	return s.play(c, w, name, uuidStr, roles, welcome)
@@ -188,8 +194,21 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	// inside the last NetworkChunkPublisherUpdate area — chunks outside it are
 	// stored (collision works) but never drawn. Must accompany every window
 	// move, like vanilla/dragonfly do.
+	errs := make(chan error, 3)
+	// send is the one write path for this session. A write error means the
+	// client is gone; it ends the session once, instead of every later write
+	// failing silently until the read side happens to notice.
+	var sendFailed atomic.Bool
+	send := func(pk packet.Packet) {
+		if err := c.WritePacket(pk); err != nil && sendFailed.CompareAndSwap(false, true) {
+			select {
+			case errs <- fmt.Errorf("client write: %w", err):
+			default:
+			}
+		}
+	}
 	publish := func(x, y, z float64, radius int32) {
-		c.WritePacket(&packet.NetworkChunkPublisherUpdate{
+		send(&packet.NetworkChunkPublisherUpdate{
 			Position: protocol.BlockPos{int32(x), int32(y), int32(z)},
 			Radius:   uint32(radius) << 4,
 		})
@@ -198,8 +217,6 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	if err := b.Write(attach.MsgWant, attach.Want{CX: ccx, CZ: ccz, Radius: viewDist.Load(), Dim: 0}); err != nil {
 		return err
 	}
-
-	errs := make(chan error, 2)
 
 	// The window mirror is touched by BOTH goroutines below — the world reader
 	// writes what the engine sends, the client reader resolves stack requests
@@ -234,7 +251,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case attach.MsgTime:
 				var t attach.Time
 				if json.Unmarshal(payload, &t) == nil {
-					c.WritePacket(&packet.SetTime{Time: int32(t.Time % 24000)})
+					send(&packet.SetTime{Time: int32(t.Time % 24000)})
 				}
 			case attach.MsgChat:
 				var e attach.Chat
@@ -250,12 +267,12 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						// same line here (Text is just the message when Sender is set).
 						msg = "<" + e.Sender + "> " + e.Text
 					}
-					c.WritePacket(&packet.Text{TextType: tt, Message: msg})
+					send(&packet.Text{TextType: tt, Message: msg})
 				}
 			case attach.MsgBlockSet:
 				var e attach.BlockSet
 				if json.Unmarshal(payload, &e) == nil {
-					c.WritePacket(&packet.UpdateBlock{
+					send(&packet.UpdateBlock{
 						Position:          protocol.BlockPos{int32(e.X), int32(e.Y), int32(e.Z)},
 						NewBlockRuntimeID: bedrockBlockRID(e.State),
 						Flags:             packet.BlockUpdateNetwork,
@@ -265,7 +282,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				var e attach.PlayerInfo
 				if json.Unmarshal(payload, &e) == nil {
 					names[e.UUID] = e.Name
-					c.WritePacket(&packet.PlayerList{
+					send(&packet.PlayerList{
 						ActionType: packet.PlayerListActionAdd,
 						Entries: []protocol.PlayerListEntry{{
 							UUID:     uuid.UUID(e.UUID),
@@ -278,7 +295,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				var e attach.PlayerGone
 				if json.Unmarshal(payload, &e) == nil {
 					delete(names, e.UUID)
-					c.WritePacket(&packet.PlayerList{
+					send(&packet.PlayerList{
 						ActionType: packet.PlayerListActionRemove,
 						Entries:    []protocol.PlayerListEntry{{UUID: uuid.UUID(e.UUID)}},
 					})
@@ -294,7 +311,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					case e.Type == canonicalPlayerType:
 						st.player = true
 						ents[e.EID] = st
-						c.WritePacket(&packet.AddPlayer{
+						send(&packet.AddPlayer{
 							UUID:            uuid.UUID(e.UUID),
 							Username:        names[e.UUID],
 							EntityRuntimeID: rt(e.EID),
@@ -313,7 +330,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							continue
 						}
 						ents[e.EID] = st
-						c.WritePacket(&packet.AddActor{
+						send(&packet.AddActor{
 							EntityUniqueID:  int64(e.EID),
 							EntityRuntimeID: rt(e.EID),
 							EntityType:      ident,
@@ -359,7 +376,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				} else {
 					m[protocol.EntityDataKeyLeashHolder] = int64(-1) // no holder
 				}
-				c.WritePacket(&packet.SetActorData{
+				send(&packet.SetActorData{
 					EntityRuntimeID: rt(e.Leashed),
 					EntityMetadata:  m,
 				})
@@ -372,14 +389,14 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					}
 					st.pos = mgl32.Vec3{float32(e.X), float32(e.Y), float32(e.Z)}
 					st.yaw, st.pitch = e.Yaw, e.Pitch
-					moveEntity(c, e.EID, st, e.OnGround)
+					moveEntityVia(send, c, e.EID, st, e.OnGround)
 				}
 			case attach.MsgEntityHead:
 				var e attach.EntityHead
 				if json.Unmarshal(payload, &e) == nil {
 					if st := ents[e.EID]; st != nil {
 						st.headYaw = e.Yaw
-						moveEntity(c, e.EID, st, true)
+						moveEntityVia(send, c, e.EID, st, true)
 					}
 				}
 			case attach.MsgEntityRemove:
@@ -391,14 +408,14 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							continue
 						}
 						delete(ents, eid)
-						c.WritePacket(&packet.RemoveActor{EntityUniqueID: int64(eid)})
+						send(&packet.RemoveActor{EntityUniqueID: int64(eid)})
 					}
 				}
 			case attach.MsgVelocity:
 				var e attach.Velocity
 				if json.Unmarshal(payload, &e) == nil {
 					if _, ok := ents[e.EID]; ok {
-						c.WritePacket(&packet.SetActorMotion{
+						send(&packet.SetActorMotion{
 							EntityRuntimeID: rt(e.EID),
 							Velocity:        mgl32.Vec3{float32(e.VX), float32(e.VY), float32(e.VZ)},
 						})
@@ -409,7 +426,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					pos = e.Pos
 					ccx, ccz = int32(math.Floor(pos.X))>>4, int32(math.Floor(pos.Z))>>4
-					c.WritePacket(&packet.MovePlayer{
+					send(&packet.MovePlayer{
 						EntityRuntimeID: rt(welcome.EID),
 						Position:        mgl32.Vec3{float32(pos.X), float32(pos.Y) + playerEyeOffset, float32(pos.Z)},
 						Pitch:           pos.Pitch, Yaw: pos.Yaw, HeadYaw: pos.Yaw,
@@ -452,7 +469,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				ccx, ccz = int32(math.Floor(pos.X))>>4, int32(math.Floor(pos.Z))>>4
 				curDim.Store(0)
 				for eid := range ents {
-					c.WritePacket(&packet.RemoveActor{EntityUniqueID: int64(eid)})
+					send(&packet.RemoveActor{EntityUniqueID: int64(eid)})
 					delete(ents, eid)
 				}
 				clear(skipped) // stale no-Bedrock-form latches must not swallow the new shard's removes
@@ -592,7 +609,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					r = viewCap
 				}
 				viewDist.Store(r)
-				c.WritePacket(&packet.ChunkRadiusUpdated{ChunkRadius: r})
+				send(&packet.ChunkRadiusUpdated{ChunkRadius: r})
 				publish(lastX, lastY, lastZ, r)
 				b.Write(attach.MsgWant, attach.Want{CX: ccx, CZ: ccz, Radius: r, Dim: curDim.Load()})
 			}
@@ -624,25 +641,42 @@ func baseMetadata(width, height float32) protocol.EntityMetadata {
 
 // moveEntity renders one absolute movement state to the client. Players use
 // MovePlayer (eye-height offset); everything else MoveActorAbsolute.
-func moveEntity(c *minecraft.Conn, eid int32, st *entState, onGround bool) {
+func moveEntity(c *minecraft.Conn, eid int32, st *entState, onGround bool) error {
 	if st.player {
-		c.WritePacket(&packet.MovePlayer{
+		return c.WritePacket(&packet.MovePlayer{
 			EntityRuntimeID: rt(eid),
 			Position:        st.pos.Add(mgl32.Vec3{0, playerEyeOffset, 0}),
 			Pitch:           st.pitch, Yaw: st.yaw, HeadYaw: st.headYaw,
 			Mode:     packet.MoveModeNormal,
 			OnGround: onGround,
 		})
-		return
 	}
 	var flags byte
 	if onGround {
 		flags |= packet.MoveFlagOnGround
 	}
-	c.WritePacket(&packet.MoveActorAbsolute{
+	return c.WritePacket(&packet.MoveActorAbsolute{
 		EntityRuntimeID: rt(eid),
 		Flags:           flags,
 		Position:        st.pos,
 		Rotation:        mgl32.Vec3{st.pitch, st.headYaw, st.yaw},
 	})
+}
+
+// moveEntityVia is moveEntity for the session loop: a failed write is fed to
+// the session's send path so it ends the session like any other dead write.
+func moveEntityVia(send func(packet.Packet), c *minecraft.Conn, eid int32, st *entState, onGround bool) {
+	if err := moveEntity(c, eid, st, onGround); err != nil {
+		send(&packet.MoveActorAbsolute{}) // a write on a dead conn fails fast and trips the session's error
+	}
+}
+
+// sendAll writes packets in order and returns the first error.
+func sendAll(c *minecraft.Conn, pks ...packet.Packet) error {
+	for _, pk := range pks {
+		if err := c.WritePacket(pk); err != nil {
+			return err
+		}
+	}
+	return nil
 }
