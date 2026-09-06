@@ -135,6 +135,7 @@ func (r *recipeSet) packet() *packet.CraftingData {
 		})
 	}
 	pk.Recipes = append(pk.Recipes, smithingRecipes()...)
+	pk.Recipes = append(pk.Recipes, trimRecipe())
 	for i, r := range tproto.StonecuttingRecipes { // the stonecutter's, as one-input shapeless recipes
 		out, ok := bedrockStackOf(attach.ItemStack{ID: r.Out, Count: int32(r.Count)})
 		d, ok2 := descriptor(r.In)

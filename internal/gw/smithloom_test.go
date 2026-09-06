@@ -1,6 +1,7 @@
 package gw
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -101,5 +102,41 @@ func TestLoom(t *testing.T) {
 	}
 	if m.slots[m.cursor].ID != banner || m.slots[0].Count != 2 || m.slots[1].Count != 1 {
 		t.Errorf("loom mirror %+v %+v cursor %+v", m.slots[0], m.slots[1], m.slots[m.cursor])
+	}
+}
+
+// Trim data names every pattern's template and every material's item and
+// colour; the trim recipe is written in tags and takes the world's preview.
+func TestArmorTrims(t *testing.T) {
+	td := trimData()
+	if len(td.Patterns) != 18 || len(td.Materials) != 11 {
+		t.Fatalf("%d patterns, %d materials", len(td.Patterns), len(td.Materials))
+	}
+	for _, p := range td.Patterns {
+		if p.ItemName == "minecraft:air" || !strings.HasSuffix(p.ItemName, p.PatternID+"_armor_trim_smithing_template") {
+			t.Errorf("pattern %+v", p)
+		}
+	}
+	for _, m := range td.Materials {
+		if m.ItemName == "minecraft:air" || !strings.HasPrefix(m.Colour, "§") {
+			t.Errorf("material %+v", m)
+		}
+	}
+	r := trimRecipe()
+	if _, ok := r.Base.Descriptor.(*protocol.ItemTagItemDescriptor); !ok || r.RecipeNetworkID != trimBase {
+		t.Errorf("trim recipe %+v", r)
+	}
+	base := tproto.SmithingTrimmable[0]
+	w := &winState{}
+	m := w.open(8, smithingLayout, protocol.ContainerTypeSmithingTable, "Smithing Table")
+	m.set(1, attach.ItemStack{ID: base, Count: 1})
+	m.set(3, attach.ItemStack{ID: base, Count: 1}) // the world's trimmed preview
+	req := protocol.ItemStackRequest{RequestID: 11, Actions: []protocol.StackRequestAction{
+		&protocol.CraftRecipeStackRequestAction{RecipeNetworkID: trimBase},
+		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerSmithingTableInput, 51)}},
+		takeAction(1, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerCursor, 0)),
+	}}
+	if _, steps, ok := m.applyRequest(req, nil); !ok || len(steps) != 1 || steps[0].click.Slot != 3 {
+		t.Fatalf("trim: ok=%v steps=%+v", ok, steps)
 	}
 }

@@ -33,7 +33,7 @@ func TestCraftingBridge(t *testing.T) {
 		Shaped:    []attach.ShapedRecipe{{ID: 0, W: 1, H: 2, Cells: []int32{plank, plank}, Result: stick, Count: 4}},
 		Shapeless: []attach.ShapelessRecipe{{ID: 1, Ingredients: []int32{plank}, Result: stick, Count: 1}}})
 	pk := rs.packet()
-	if !pk.ClearRecipes || len(pk.Recipes) != 2+len(smithingRecipes())+len(tproto.StonecuttingRecipes) { // the book, the smithing upgrades, the stonecutter's
+	if !pk.ClearRecipes || len(pk.Recipes) != 2+len(smithingRecipes())+1+len(tproto.StonecuttingRecipes) { // the book, the smithing upgrades and trim, the stonecutter's
 		t.Fatalf("crafting data: %d recipes", len(pk.Recipes))
 	}
 	if sr, ok := pk.Recipes[0].(*protocol.ShapedRecipe); !ok || sr.RecipeNetworkID != 1 || len(sr.Input) != 2 || sr.Output[0].Count != 4 {

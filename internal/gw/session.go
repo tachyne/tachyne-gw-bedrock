@@ -357,6 +357,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case attach.MsgRecipeBook:
 				var rb attach.RecipeBook
 				if json.Unmarshal(payload, &rb) == nil {
+					if rb.Replace {
+						send(trimData()) // the trim recipe below refers to these
+					}
 					recipes.add(rb)
 					send(recipes.packet())
 				}

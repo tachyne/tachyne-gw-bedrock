@@ -16,8 +16,8 @@ import (
 // rides in the crafting data as transform recipes; the table's four slots
 // live in the UI window. A craft request naming a recipe takes whatever
 // the world previewed (it carries the base's wear, enchantments and
-// name), through the slot-3 click. Armor trims wait on Bedrock's trim
-// data packet.
+// name), through the slot-3 click; a trim (trims.go) takes the preview
+// the same way.
 //
 // Loom: Bedrock's loom lists its own patterns and names the chosen one by
 // its short id in a CraftLoom request; that becomes the world's button
