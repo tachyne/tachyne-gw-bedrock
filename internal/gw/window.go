@@ -74,6 +74,12 @@ var tradeLayout = []winSlot{
 	{protocol.ContainerTradeTwoResultPreview, craftOutputSlot},
 }
 
+// enchantLayout: the item and the lapis, in the UI window.
+var enchantLayout = []winSlot{
+	{protocol.ContainerEnchantingInput, 14},
+	{protocol.ContainerEnchantingMaterial, 15},
+}
+
 var menuWindows = map[int32]menuWindow{
 	0:  {chestLayout(9), protocol.ContainerTypeContainer},    // generic_9x1
 	1:  {chestLayout(18), protocol.ContainerTypeContainer},   // generic_9x2
@@ -86,6 +92,7 @@ var menuWindows = map[int32]menuWindow{
 	10: {furnaceLayout, protocol.ContainerTypeBlastFurnace},  // blast_furnace
 	11: {brewingLayout, protocol.ContainerTypeBrewingStand},  // brewing_stand
 	12: {craftingLayout, protocol.ContainerTypeWorkbench},    // crafting
+	13: {enchantLayout, protocol.ContainerTypeEnchantment},   // enchantment
 	14: {furnaceLayout, protocol.ContainerTypeFurnace},       // furnace
 	15: {grindstoneLayout, protocol.ContainerTypeGrindstone}, // grindstone
 	16: {chestLayout(5), protocol.ContainerTypeHopper},       // hopper
@@ -111,6 +118,10 @@ func (w *winState) open(id int32, layout []winSlot, ctype byte, title string) *i
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.mirror = newWindowMirror(id, layout)
+	w.mirror.table = ctype == protocol.ContainerTypeEnchantment
+	for i := range w.mirror.ench {
+		w.mirror.ench[i] = enchantRow{bedrock: -1, level: -1}
+	}
 	w.ctype = ctype
 	w.title = title
 	return w.mirror
@@ -230,6 +241,11 @@ func sendWindowSlot(w packetWriter, m *invMirror, slot int32, st attach.ItemStac
 func windowData(w packetWriter, m *invMirror, ctype byte, prop, value int32) {
 	var key int32
 	switch ctype {
+	case protocol.ContainerTypeEnchantment:
+		if m.enchantProp(prop, value) {
+			w.WritePacket(m.enchantOptions())
+		}
+		return
 	case protocol.ContainerTypeFurnace, protocol.ContainerTypeBlastFurnace, protocol.ContainerTypeSmoker:
 		switch prop {
 		case 0:

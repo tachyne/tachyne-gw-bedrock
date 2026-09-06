@@ -159,6 +159,7 @@ type craftStep struct {
 	click *attach.WindowClick
 	name  *string          // the anvil's rename box
 	sel   *attach.SelTrade // the trade screen's chosen offer
+	ench  *attach.Enchant  // the enchanting table's chosen row
 }
 
 // applyCraft resolves a craft request against the mirror (held locked):
@@ -199,6 +200,14 @@ func (m *invMirror) applyCraft(req protocol.ItemStackRequest, recipes *recipeSet
 				return fail()
 			}
 		case *protocol.CraftRecipeStackRequestAction:
+			if m.table { // the enchanting table: the row is a button, the world does the rest
+				button, ok := m.enchantButton(act.RecipeNetworkID)
+				if !ok || named {
+					return fail()
+				}
+				m.slots = before
+				return nil, []craftStep{{ench: &attach.Enchant{Button: button}}}, true
+			}
 			if m.trades != nil { // a trade screen: the offer by index
 				idx := int(act.RecipeNetworkID) - 1
 				if named || idx < 0 || idx >= len(m.trades) || m.trades[idx].Count <= 0 {

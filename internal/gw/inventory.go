@@ -136,7 +136,8 @@ func uiContainer(id byte) bool {
 	case protocol.ContainerCraftingInput, protocol.ContainerCraftingOutputPreview, protocol.ContainerCreatedOutput,
 		protocol.ContainerAnvilInput, protocol.ContainerAnvilMaterial, protocol.ContainerAnvilResultPreview,
 		protocol.ContainerGrindstoneInput, protocol.ContainerGrindstoneAdditional, protocol.ContainerGrindstoneResultPreview,
-		protocol.ContainerTradeTwoIngredientOne, protocol.ContainerTradeTwoIngredientTwo, protocol.ContainerTradeTwoResultPreview:
+		protocol.ContainerTradeTwoIngredientOne, protocol.ContainerTradeTwoIngredientTwo, protocol.ContainerTradeTwoResultPreview,
+		protocol.ContainerEnchantingInput, protocol.ContainerEnchantingMaterial:
 		return true
 	}
 	return false

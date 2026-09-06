@@ -843,6 +843,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							if s.sel != nil {
 								b.Write(attach.MsgSelTrade, *s.sel)
 							}
+							if s.ench != nil {
+								b.Write(attach.MsgEnchant, *s.ench)
+							}
 							if s.place != nil {
 								b.Write(attach.MsgCraft, *s.place)
 							}
