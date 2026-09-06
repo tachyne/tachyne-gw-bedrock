@@ -18,13 +18,18 @@ var particleEvents = map[int32]int32{
 	3:  packet.LevelEventParticlesBubble,    // bubble
 }
 
-// particleEvent renders a particle burst, or nil.
-func particleEvent(e attach.Particles) *packet.LevelEvent {
-	ev, ok := particleEvents[e.PID]
-	if !ok {
-		return nil
+// particleEvent renders a particle burst: the level event Bedrock has for
+// it, else the named particle Geyser's table maps it to (spawned in the
+// player's dimension), else nil.
+func particleEvent(e attach.Particles, dim int32) packet.Packet {
+	pos := mgl32.Vec3{float32(e.X), float32(e.Y), float32(e.Z)}
+	if ev, ok := particleEvents[e.PID]; ok {
+		return &packet.LevelEvent{EventType: ev, Position: pos}
 	}
-	return &packet.LevelEvent{EventType: ev, Position: mgl32.Vec3{float32(e.X), float32(e.Y), float32(e.Z)}}
+	if int(e.PID) < len(bedrockParticleNames) && bedrockParticleNames[e.PID] != "" {
+		return &packet.SpawnParticleEffect{Dimension: byte(dim), EntityUniqueID: -1, Position: pos, ParticleName: bedrockParticleNames[e.PID]}
+	}
+	return nil
 }
 
 // worldEvent renders a Java level event: block-break particles carry the

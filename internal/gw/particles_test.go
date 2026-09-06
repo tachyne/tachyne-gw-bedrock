@@ -8,10 +8,10 @@ import (
 )
 
 func TestParticleAndWorldEvents(t *testing.T) {
-	if p := particleEvent(attach.Particles{PID: 5, X: 1}); p == nil || p.EventType != packet.LevelEventParticlesCritical {
+	if p, ok := particleEvent(attach.Particles{PID: 5, X: 1}, 0).(*packet.LevelEvent); !ok || p.EventType != packet.LevelEventParticlesCritical {
 		t.Errorf("crit → %+v", p)
 	}
-	if p := particleEvent(attach.Particles{PID: 999}); p != nil {
+	if p := particleEvent(attach.Particles{PID: 999}, 0); p != nil {
 		t.Error("unknown particles stay silent")
 	}
 	if p := worldEvent(attach.WorldFX{Event: 2001, X: 1, Y: 2, Z: 3, Data: 1}); p == nil || p.EventType != packet.LevelEventParticlesDestroyBlock || p.Position[1] != 2.5 {

@@ -128,9 +128,12 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   and destroying become the world's creative slot sets, or declared
   clicks inside a container); dropping items (from a window, or the held
   stack in the world — the declared slot holds less and the world drops
-  the difference); block-break,
-  bone-meal, crit, explosion, poof and bubble
-  particles as level events; container windows (chests, barrels, shulker
+  the difference); on-ground from the client's own vertical-collision
+  input flag (so fall damage lands right); block-break, bone-meal, crit,
+  explosion, poof and bubble particles as level events and sixty-odd
+  more (flames, smoke, splashes, hearts, notes, portal, enchant
+  glyphs…) as the named Bedrock particles Geyser's table maps them to;
+  Bedrock players' own skins in each other's player lists; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers
   and brewing stands open at the used block with their slots where Bedrock
   keeps them and the burn/cook/brew bars as container data; clicks reach
@@ -139,9 +142,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   completions toast and are announced in chat), the remaining menus
   (cartography table, lectern, crafter are closed straight back so the
   world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
-  horse, llama, parrot and rabbit variants and collars), most particles, real Java skin → Bedrock skin conversion, on_ground
-  derivation (a Y-stability heuristic rather than real ground detection, so
-  Bedrock fall damage is unreliable).
+  horse, llama, parrot and rabbit variants and collars), the particles
+  Geyser's table has no Bedrock name for, Java players' skins (the world
+  runs without Mojang profiles, so Java players stay grey on Bedrock).
 
 ## Deployment
 

@@ -118,6 +118,10 @@ type entState struct {
 // protocol. The conn is already logged in (gophertunnel handled RakNet,
 // encryption and login); we run StartGame and then two pumps.
 func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidStr string, roles []string) error {
+	if id, err := uuid.Parse(uuidStr); err == nil {
+		s.skins.put(id, skinFromClientData(c.ClientData()))
+		defer s.skins.drop(id)
+	}
 	// Shared attach client machinery (tachyne-common/attach) — the same dial
 	// the Java gateways use; only the client transport differs.
 	w, welcome, err := attach.DialSession(s.Backend, attach.Hello{
@@ -410,7 +414,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						Entries: []protocol.PlayerListEntry{{
 							UUID:     uuid.UUID(e.UUID),
 							Username: e.Name,
-							Skin:     defaultSkin(),
+							Skin:     s.skins.get(uuid.UUID(e.UUID)),
 						}},
 					})
 				}
@@ -601,7 +605,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case attach.MsgParticles:
 				var e attach.Particles
 				if json.Unmarshal(payload, &e) == nil {
-					if p := particleEvent(e); p != nil {
+					if p := particleEvent(e, curDim.Load()); p != nil {
 						send(p)
 					}
 				}
@@ -812,9 +816,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				x := float64(p.Position.X())
 				y := float64(p.Position.Y()) - playerEyeOffset
 				z := float64(p.Position.Z())
-				// PlayerAuthInput carries no on-ground flag; a stable Y is the
-				// usable proxy (jumping/falling/swimming all move Y every tick).
-				onGround := math.Abs(y-lastY) < 1e-6
+				// On the ground = the client reports a vertical collision this
+				// tick (Bedrock's own ground test, as Geyser reads it), which is
+				// what the world's fall damage keys off.
+				onGround := p.InputData.Load(packet.InputFlagVerticalCollision)
 				if math.Abs(x-lastX) < 1e-4 && math.Abs(y-lastY) < 1e-4 && math.Abs(z-lastZ) < 1e-4 &&
 					p.Yaw == lastYaw && p.Pitch == lastPitch && onGround == lastOnGround {
 					continue

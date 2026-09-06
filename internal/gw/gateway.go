@@ -37,6 +37,8 @@ type Server struct {
 	SID          int
 	AuthDisabled bool           // XBL authentication off (dev / offline probes)
 	Access       *access.Client // nil = open (dev only)
+
+	skins skinStore // Bedrock players' own skins, for each other's player lists
 }
 
 func (s *Server) Run(ctx context.Context) error {
