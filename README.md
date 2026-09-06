@@ -92,11 +92,12 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   (PlayerAuthInput → engine, absolute renders back), time, teleport, and the
   interaction bridge (melee/dig/place/use-item/hotbar/sneak via
   InventoryTransaction + PlayerAuthInput BlockActions); health, hunger,
-  saturation and XP relayed as attribute updates.
+  saturation and XP relayed as attribute updates; the death screen and
+  the respawn button (Respawn packets both ways).
 - NOT YET: Java advancement toasts/screen (completions reach Bedrock
   players as chat announcements only), hurt/death animations,
   inventory/windows rendering, equipment/metadata rendering,
-  sounds/particles, death/respawn flow, nether/end
+  sounds/particles, nether/end
   (ChangeDimension + per-dimension chunk ranges — engine chunks are 24
   sections everywhere; Bedrock nether is 8), item entities (AddItemActor),
   boat wood variants, real Java skin → Bedrock skin conversion, on_ground

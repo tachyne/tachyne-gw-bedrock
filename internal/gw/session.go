@@ -185,6 +185,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	b := attach.NewBackend(w)
 	defer func() { b.Get().Close() }()
 	pos := welcome.Spawn
+	dead := false // between the world's death screen and the respawn teleport
 	var curDim atomic.Int32
 	ccx, ccz := int32(math.Floor(pos.X))>>4, int32(math.Floor(pos.Z))>>4
 	var viewDist atomic.Int32
@@ -266,6 +267,20 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.saturation", Value: e.Saturation, Max: 20}, DefaultMax: 20, Default: 20},
 						},
 					})
+				}
+			case attach.MsgDeath:
+				// The death screen: Bedrock shows it off the health attribute
+				// (already zero from the Health frame) and the Respawn packet's
+				// searching state; the respawn button answers with its own
+				// Respawn (client-ready), relayed to the world as MsgRespawnReq.
+				var e attach.Death
+				if json.Unmarshal(payload, &e) == nil {
+					if e.Message != "" {
+						send(&packet.Text{TextType: packet.TextTypeRaw, Message: e.Message})
+					}
+					dead = true
+					send(&packet.Respawn{Position: mgl32.Vec3{float32(pos.X), float32(pos.Y), float32(pos.Z)},
+						State: packet.RespawnStateSearchingForSpawn, EntityRuntimeID: rt(welcome.EID)})
 				}
 			case attach.MsgXP:
 				var e attach.XP
@@ -451,6 +466,11 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					pos = e.Pos
 					ccx, ccz = int32(math.Floor(pos.X))>>4, int32(math.Floor(pos.Z))>>4
+					if dead { // the respawn teleport: tell the client its spawn is ready
+						dead = false
+						send(&packet.Respawn{Position: mgl32.Vec3{float32(pos.X), float32(pos.Y), float32(pos.Z)},
+							State: packet.RespawnStateReadyToSpawn, EntityRuntimeID: rt(welcome.EID)})
+					}
 					send(&packet.MovePlayer{
 						EntityRuntimeID: rt(welcome.EID),
 						Position:        mgl32.Vec3{float32(pos.X), float32(pos.Y) + playerEyeOffset, float32(pos.Z)},
@@ -535,6 +555,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				return
 			}
 			switch p := pk.(type) {
+			case *packet.Respawn:
+				if p.State == packet.RespawnStateClientReadyToSpawn {
+					b.Write(attach.MsgRespawnReq, attach.RespawnReq{}) // the death screen's respawn button
+				}
 			case *packet.PlayerAuthInput:
 				// Block actions ride the input packet (server-auth breaking):
 				// start/abort/finish map onto the domain Dig statuses.
