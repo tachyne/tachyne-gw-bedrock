@@ -351,6 +351,19 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						}
 					}
 				}
+			case attach.MsgCursorItem:
+				// The stack on the cursor, as the world holds it: into the
+				// open window's mirror (or the player's) and Bedrock's cursor.
+				var e attach.CursorItem
+				if json.Unmarshal(payload, &e) == nil {
+					m := mirror
+					if wm := win.current(); wm != nil {
+						m = wm
+					}
+					m.setCursor(e.Item)
+					send(&packet.InventorySlot{WindowID: protocol.WindowIDUI, Slot: 0,
+						Container: protocol.Option(fullContainer(protocol.ContainerCursor)), NewItem: bedrockStack(e.Item)})
+				}
 			case attach.MsgCommandTree:
 				var e attach.CommandTree
 				if json.Unmarshal(payload, &e) == nil {

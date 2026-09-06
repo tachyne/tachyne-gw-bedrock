@@ -247,3 +247,17 @@ func TestDrops(t *testing.T) {
 		t.Errorf("held drop: ok=%v click=%+v slot %+v", ok, click, m.slots[39])
 	}
 }
+
+// The world's cursor stack lands on the mirror's cursor.
+func TestCursorItem(t *testing.T) {
+	m := newInvMirror()
+	m.setCursor(attach.ItemStack{ID: 3, Count: 7})
+	if m.slots[m.cursor].Count != 7 {
+		t.Errorf("cursor %+v", m.slots[m.cursor])
+	}
+	w := newWindowMirror(2, chestLayout(9))
+	w.setCursor(attach.ItemStack{ID: 3, Count: 1})
+	if j, ok := w.mapIn(protocol.ContainerCursor, 0); !ok || w.slots[j].Count != 1 {
+		t.Errorf("window cursor %+v", w.slots[w.cursor])
+	}
+}

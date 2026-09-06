@@ -149,6 +149,13 @@ func newWindowMirror(id int32, layout []winSlot) *invMirror {
 	return m
 }
 
+// setCursor records the stack the engine says is on the cursor.
+func (m *invMirror) setCursor(st attach.ItemStack) {
+	m.mu.Lock()
+	m.slots[m.cursor] = st
+	m.mu.Unlock()
+}
+
 // set records a slot the engine has told us about.
 func (m *invMirror) set(slot int32, st attach.ItemStack) {
 	m.mu.Lock()
