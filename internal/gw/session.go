@@ -488,7 +488,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					if mw, ok := menuWindows[e.Menu]; ok {
 						win.open(e.ID, mw.layout, mw.ctype, e.Title)
 						p := win.usedAt()
-						if mw.ctype != protocol.ContainerTypeTrade { // the trade screen opens on its offers (UpdateTrade)
+						if mw.ctype != protocol.ContainerTypeTrade && mw.ctype != protocol.ContainerTypeLectern { // these open on their own data
 							send(&packet.ContainerOpen{WindowID: byte(e.ID), ContainerType: mw.ctype,
 								ContainerPosition: protocol.BlockPos{p[0], p[1], p[2]}, ContainerEntityUniqueID: -1})
 						}
@@ -507,7 +507,16 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						sendPlayerInventory(c, e.Slots)
 					} else if wm := win.current(); wm != nil && wm.window == e.ID {
 						wm.setAll(e.Slots, e.Cursor)
-						sendWindowItems(c, wm, e.Slots)
+						if wm.lecternBook { // the book rides the block entity; then the lectern screen opens on it
+							if len(e.Slots) > 0 {
+								send(lecternData(wm.at, e.Slots[0], wm.lecternPage))
+							}
+							p := win.usedAt()
+							send(&packet.ContainerOpen{WindowID: byte(e.ID), ContainerType: protocol.ContainerTypeLectern,
+								ContainerPosition: protocol.BlockPos{p[0], p[1], p[2]}, ContainerEntityUniqueID: -1})
+						} else {
+							sendWindowItems(c, wm, e.Slots)
+						}
 					}
 				}
 			case attach.MsgWindowData:
@@ -941,6 +950,18 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						Mode: packet.MoveModeTeleport,
 					})
 					publish(pos.X, pos.Y, pos.Z, viewDist.Load())
+				}
+			case *packet.LecternUpdate:
+				if wm := win.current(); wm != nil && wm.lecternBook {
+					b.Write(attach.MsgEnchant, attach.Enchant{Button: lecternJumpButton + int32(p.Page)})
+				}
+			case *packet.BookEdit:
+				// A book-and-quill edit: apply it to the pages the held stack
+				// carries and send the world the whole book (hotbar only).
+				if p.InventorySlot >= 0 && p.InventorySlot < 9 {
+					if book, ok := mirror.editBook(javaHotbarFirst+p.InventorySlot, p); ok {
+						b.Write(attach.MsgEditBook, book)
+					}
 				}
 			case *packet.ContainerClose:
 				if id, ctype, was := win.close(); was {

@@ -128,6 +128,7 @@ var menuWindows = map[int32]menuWindow{
 	14: {furnaceLayout, protocol.ContainerTypeFurnace},         // furnace
 	15: {grindstoneLayout, protocol.ContainerTypeGrindstone},   // grindstone
 	16: {chestLayout(5), protocol.ContainerTypeHopper},         // hopper
+	17: {lecternLayout, protocol.ContainerTypeLectern},         // lectern
 	18: {loomLayout, protocol.ContainerTypeLoom},               // loom
 	19: {tradeLayout, protocol.ContainerTypeTrade},             // merchant
 	20: {chestLayout(27), protocol.ContainerTypeContainer},     // shulker_box
@@ -159,6 +160,7 @@ func (w *winState) open(id int32, layout []winSlot, ctype byte, title string) *i
 	w.mirror.smith = ctype == protocol.ContainerTypeSmithingTable
 	w.mirror.loom = ctype == protocol.ContainerTypeLoom
 	w.mirror.beacon = ctype == protocol.ContainerTypeBeacon
+	w.mirror.lecternBook = ctype == protocol.ContainerTypeLectern
 	w.mirror.at = w.lastUse
 	for i := range w.mirror.ench {
 		w.mirror.ench[i] = enchantRow{bedrock: -1, level: -1}
@@ -290,6 +292,18 @@ func windowData(w packetWriter, m *invMirror, ctype byte, prop, value int32) {
 	case protocol.ContainerTypeBeacon:
 		if pk := m.beaconProp(prop, value); pk != nil {
 			w.WritePacket(pk)
+		}
+		return
+	case protocol.ContainerTypeLectern:
+		if prop == 0 { // the open page
+			m.mu.Lock()
+			m.lecternPage = value
+			book := attach.ItemStack{}
+			if len(m.slots) > 0 {
+				book = m.slots[0]
+			}
+			m.mu.Unlock()
+			w.WritePacket(lecternData(m.at, book, value))
 		}
 		return
 	case protocol.ContainerTypeFurnace, protocol.ContainerTypeBlastFurnace, protocol.ContainerTypeSmoker:

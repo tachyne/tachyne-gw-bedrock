@@ -41,22 +41,24 @@ const (
 // so a Bedrock transaction can be resolved into a Java click; the engine
 // remains the authority and its next window frame overwrites this wholesale.
 type invMirror struct {
-	mu     sync.Mutex
-	slots  []attach.ItemStack                       // the window's Java slots, then the cursor last
-	cursor int32                                    // index of the cursor slot
-	window int32                                    // the Java window id the clicks name (0 = the player's own)
-	mapIn  func(container, slot byte) (int32, bool) // Bedrock slot → Java slot
-	mapOut func(slot int32) (byte, uint32, bool)    // Java slot → Bedrock container + index
-	layout []winSlot                                // container windows: where Bedrock keeps each container slot
-	result int32                                    // the Java slot a craft's result comes from (-1 = none)
-	trades []attach.ItemStack                       // a trade screen: what each offer sells, by index
-	ench   [3]enchantRow                            // an enchanting table's rows
-	table  bool                                     // …which this window is
-	cutter bool                                     // a stonecutter
-	smith  bool                                     // a smithing table
-	loom   bool                                     // a loom
-	beacon bool                                     // a beacon
-	at     [3]int32                                 // the block the window sits at
+	mu          sync.Mutex
+	slots       []attach.ItemStack                       // the window's Java slots, then the cursor last
+	cursor      int32                                    // index of the cursor slot
+	window      int32                                    // the Java window id the clicks name (0 = the player's own)
+	mapIn       func(container, slot byte) (int32, bool) // Bedrock slot → Java slot
+	mapOut      func(slot int32) (byte, uint32, bool)    // Java slot → Bedrock container + index
+	layout      []winSlot                                // container windows: where Bedrock keeps each container slot
+	result      int32                                    // the Java slot a craft's result comes from (-1 = none)
+	trades      []attach.ItemStack                       // a trade screen: what each offer sells, by index
+	ench        [3]enchantRow                            // an enchanting table's rows
+	table       bool                                     // …which this window is
+	cutter      bool                                     // a stonecutter
+	smith       bool                                     // a smithing table
+	loom        bool                                     // a loom
+	beacon      bool                                     // a beacon
+	lecternBook bool                                     // a lectern (the book rides the block entity)
+	lecternPage int32
+	at          [3]int32 // the block the window sits at
 	// beaconPrimary/Secondary are the beacon's chosen effects (Bedrock's numbering).
 	beaconPrimary, beaconSecondary int32
 }
@@ -271,6 +273,29 @@ func (m *invMirror) dropHeld(container byte, slot byte, count int32) (attach.Win
 	}
 	return attach.WindowClick{ID: m.window, Slot: j, Mode: 0, Cursor: m.slots[m.cursor],
 		Changed: []attach.ClickChange{{Slot: j, Item: m.slots[j]}}}, true
+}
+
+// editBook applies a Bedrock book edit to the writable book in a slot and
+// returns the world's edit-book frame for it.
+func (m *invMirror) editBook(slot int32, p *packet.BookEdit) (attach.EditBook, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if slot < 0 || int(slot) >= len(m.slots) || m.slots[slot].Count <= 0 {
+		return attach.EditBook{}, false
+	}
+	var pages []string
+	if b, ok := parseBook(m.slots[slot].Components); ok && !b.written {
+		pages = b.pages
+	}
+	pages, ok := editPages(pages, p.ActionType, int(p.PageNumber), int(p.SecondaryPageNumber), p.Text)
+	if !ok {
+		return attach.EditBook{}, false
+	}
+	e := attach.EditBook{Slot: slot - javaHotbarFirst, Pages: pages}
+	if p.ActionType == packet.BookActionSign {
+		e.Title, e.HasTitle = p.Title, true
+	}
+	return e, true
 }
 
 // swap exchanges two slots outright.

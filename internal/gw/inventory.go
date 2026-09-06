@@ -89,7 +89,8 @@ func bedrockStack(st attach.ItemStack) protocol.ItemInstance {
 				NetworkID:     rid,
 				MetadataValue: uint32(data),
 			},
-			Count: uint16(st.Count),
+			Count:   uint16(st.Count),
+			NBTData: bookNBT(st),
 		},
 	}
 }
