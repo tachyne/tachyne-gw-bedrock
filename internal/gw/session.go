@@ -253,6 +253,31 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &t) == nil {
 					send(&packet.SetTime{Time: int32(t.Time % 24000)})
 				}
+			case attach.MsgHealth:
+				// Bedrock reads health, hunger and saturation off the player's
+				// attributes; until this the client sat at a static 20.
+				var e attach.Health
+				if json.Unmarshal(payload, &e) == nil {
+					send(&packet.UpdateAttributes{
+						EntityRuntimeID: rt(welcome.EID),
+						Attributes: []protocol.Attribute{
+							{AttributeValue: protocol.AttributeValue{Name: "minecraft:health", Value: e.Health, Max: 20}, DefaultMax: 20, Default: 20},
+							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.hunger", Value: float32(e.Food), Max: 20}, DefaultMax: 20, Default: 20},
+							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.saturation", Value: e.Saturation, Max: 20}, DefaultMax: 20, Default: 20},
+						},
+					})
+				}
+			case attach.MsgXP:
+				var e attach.XP
+				if json.Unmarshal(payload, &e) == nil {
+					send(&packet.UpdateAttributes{
+						EntityRuntimeID: rt(welcome.EID),
+						Attributes: []protocol.Attribute{
+							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.experience", Value: e.Progress, Max: 1}, DefaultMax: 1},
+							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.level", Value: float32(e.Level), Max: 24791}, DefaultMax: 24791},
+						},
+					})
+				}
 			case attach.MsgChat:
 				var e attach.Chat
 				if json.Unmarshal(payload, &e) == nil {
