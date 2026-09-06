@@ -128,7 +128,10 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   pages, title and author ride on the stack as Bedrock book NBT, a book
   and quill's page edits and signing reach the world as the whole book,
   and a lectern shows its book off the block entity with page turns as
-  the world's jump-to-page button); the creative inventory
+  the world's jump-to-page button); signs (standing signs come out of
+  the chunk's block-entity section, edits and the world's sign frames
+  become Bedrock sign block entities, the world's editor opens Bedrock's,
+  and the edited side goes back as four lines); the creative inventory
   (every mapped item listed, blocks under construction; taking, dropping
   and destroying become the world's creative slot sets, or declared
   clicks inside a container); dropping items (from a window, or the held

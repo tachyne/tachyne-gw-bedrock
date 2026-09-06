@@ -274,8 +274,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	// writes what the engine sends, the client reader resolves stack requests
 	// against it — so it carries its own lock rather than living in either.
 	mirror := newInvMirror()
-	win := &winState{}        // the open container window, if any
-	recipes := newRecipeSet() // what the client may craft (CraftingData); written by the world pump, read by requests
+	win := &winState{}                             // the open container window, if any
+	var signEdit atomic.Pointer[attach.SignEditor] // the sign side the world opened for editing
+	recipes := newRecipeSet()                      // what the client may craft (CraftingData); written by the world pump, read by requests
 
 	// World → client.
 	go func() {
@@ -304,6 +305,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if err := c.WritePacket(renderChunk(h, body)); err != nil {
 					errs <- err
 					return
+				}
+				for _, pk := range chunkSigns(h) { // the chunk's signs, as block entities
+					send(pk)
 				}
 			case attach.MsgTime:
 				var t attach.Time
@@ -360,6 +364,17 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							}
 						}
 					}
+				}
+			case attach.MsgSignText:
+				var e attach.SignText
+				if json.Unmarshal(payload, &e) == nil {
+					send(signData(e.X, e.Y, e.Z, e.Front, e.Back, e.Waxed, e.Hanging))
+				}
+			case attach.MsgSignEditor:
+				var e attach.SignEditor
+				if json.Unmarshal(payload, &e) == nil {
+					signEdit.Store(&e)
+					send(&packet.OpenSign{Position: protocol.BlockPos{e.X, e.Y, e.Z}, FrontSide: e.Front})
 				}
 			case attach.MsgRecipeBook:
 				var rb attach.RecipeBook
@@ -950,6 +965,25 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						Mode: packet.MoveModeTeleport,
 					})
 					publish(pos.X, pos.Y, pos.Z, viewDist.Load())
+				}
+			case *packet.BlockActorData:
+				// The edited sign comes back whole; its edited side is the
+				// world's four lines.
+				if id, _ := p.NBTData["id"].(string); strings.HasSuffix(id, "Sign") {
+					ed := signEdit.Load()
+					if ed == nil {
+						break
+					}
+					side := "BackText"
+					if ed.Front {
+						side = "FrontText"
+					}
+					text := ""
+					if m, ok := p.NBTData[side].(map[string]any); ok {
+						text, _ = m["Text"].(string)
+					}
+					b.Write(attach.MsgSignUpdate, attach.SignUpdate{X: p.Position.X(), Y: p.Position.Y(), Z: p.Position.Z(),
+						Front: ed.Front, Lines: signLines(text)})
 				}
 			case *packet.LecternUpdate:
 				if wm := win.current(); wm != nil && wm.lecternBook {
