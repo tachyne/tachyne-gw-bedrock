@@ -39,8 +39,45 @@ const (
 	metaTypeOptState    = 15 // Optional<BlockState>: one VarInt, 0 = empty
 	metaTypeVillager    = tproto.VillagerDataSerializer770
 	metaTypePose        = 21
-	metaTypeFrogVariant = tproto.FrogVariantSerializer770
+	// The mob-variant registry holders (one VarInt registry id each).
+	metaTypeFrogVariant    = tproto.FrogVariantSerializer770
+	metaTypeWolfVariant    = tproto.WolfVariantSerializer770
+	metaTypeCatVariant     = tproto.CatVariantSerializer770
+	metaTypePigVariant     = tproto.PigVariantSerializer770
+	metaTypeCowVariant     = tproto.CowVariantSerializer770
+	metaTypeChickenVariant = tproto.ChickenVariantSerializer770
 )
+
+// Bedrock's VARIANT numbering for the holder-variant coats, by canonical
+// registry name (Geyser's WolfVariant / CatVariant ordinals). The canonical
+// wire id is the name's position in the registry list the Java gateways
+// send, so the lookup goes id → name → Bedrock ordinal.
+var (
+	wolfVariantBedrock = map[string]int32{
+		"minecraft:pale": 0, "minecraft:ashen": 1, "minecraft:black": 2, "minecraft:chestnut": 3,
+		"minecraft:rusty": 4, "minecraft:snowy": 5, "minecraft:spotted": 6, "minecraft:striped": 7,
+		"minecraft:woods": 8,
+	}
+	catVariantBedrock = map[string]int32{
+		"minecraft:white": 0, "minecraft:black": 1, "minecraft:red": 2, "minecraft:siamese": 3,
+		"minecraft:british_shorthair": 4, "minecraft:calico": 5, "minecraft:persian": 6,
+		"minecraft:ragdoll": 7, "minecraft:tabby": 8, "minecraft:all_black": 9, "minecraft:jellie": 10,
+	}
+)
+
+// registryEntryName resolves a canonical registry id to its entry name, ""
+// when out of range.
+func registryEntryName(regID string, id int64) string {
+	for _, reg := range tproto.SyncedRegistries {
+		if reg.ID == regID {
+			if id >= 0 && int(id) < len(reg.Entries) {
+				return reg.Entries[id]
+			}
+			return ""
+		}
+	}
+	return ""
+}
 
 // parseSimpleMeta walks a canonical metadata list as far as the value
 // types it knows reach; an entry of any other type ends the walk, since
@@ -66,7 +103,8 @@ func parseSimpleMeta(meta []byte) []metaEntry {
 				return out
 			}
 			e.val = int64(b)
-		case metaTypeVarInt, metaTypePose, metaTypeOptState, metaTypeFrogVariant:
+		case metaTypeVarInt, metaTypePose, metaTypeOptState, metaTypeFrogVariant, metaTypeWolfVariant,
+			metaTypeCatVariant, metaTypePigVariant, metaTypeCowVariant, metaTypeChickenVariant:
 			v, err := tproto.ReadVarInt(r)
 			if err != nil {
 				return out
@@ -133,10 +171,11 @@ type mobLook struct {
 	baby                                                                bool
 	// Per-mob looks; which apply depends on the mob.
 	sheared, sitting, tamed, angry, powered, ignited, climbing, shaking bool
+	bribed                                                              bool // the killer bunny's Bedrock flag
 	hasColor                                                            bool
 	color                                                               byte
-	hasVariant, hasMark, hasTier                                        bool
-	variant, markVariant, tradeTier                                     int32
+	hasVariant, hasMark, hasTier, hasStrength                           bool
+	variant, markVariant, tradeTier, strength                           int32
 	scale                                                               float32 // 0 = the default
 	hasCarry                                                            bool
 	carry                                                               uint32 // canonical block state, 0 = none
@@ -200,11 +239,54 @@ func (st *entState) applyMobMeta(e metaEntry) {
 			l.sheared = e.val&0x10 != 0
 		}
 	case "minecraft:wolf", "minecraft:cat", "minecraft:parrot":
-		if e.idx == 17 && e.typ == metaTypeByte { // TamableAnimal flags
+		switch {
+		case e.idx == 17 && e.typ == metaTypeByte: // TamableAnimal flags
 			l.sitting = e.val&0x01 != 0
 			l.angry = e.val&0x02 != 0
 			l.tamed = e.val&0x04 != 0
+		case st.ident == "minecraft:wolf" && e.idx == 22 && e.typ == metaTypeWolfVariant: // coat: a wolf_variant holder
+			if v, ok := wolfVariantBedrock[registryEntryName("minecraft:wolf_variant", e.val)]; ok {
+				l.hasVariant, l.variant = true, v
+			}
+		case st.ident == "minecraft:cat" && e.idx == 19 && e.typ == metaTypeCatVariant: // coat: a cat_variant holder
+			if v, ok := catVariantBedrock[registryEntryName("minecraft:cat_variant", e.val)]; ok {
+				l.hasVariant, l.variant = true, v
+			}
+		case st.ident == "minecraft:parrot" && e.idx == 19 && e.typ == metaTypeVarInt: // colour: the same five numbers
+			l.hasVariant, l.variant = true, int32(clampIdx(e.val, 5))
 		}
+	case "minecraft:horse":
+		if e.idx == 18 && e.typ == metaTypeVarInt { // colour | markings<<8: Bedrock splits them
+			l.hasVariant, l.variant = true, int32(e.val&0xff)
+			l.hasMark, l.markVariant = true, int32((e.val>>8)%5)
+		}
+	case "minecraft:llama": // the trader llama renders as a llama too
+		switch {
+		case e.idx == 19 && e.typ == metaTypeVarInt: // strength: chest columns
+			l.hasStrength, l.strength = true, int32(e.val)
+		case e.idx == 20 && e.typ == metaTypeVarInt: // coat: creamy, white, brown, gray on both editions
+			l.hasVariant, l.variant = true, int32(clampIdx(e.val, 4))
+		}
+	case "minecraft:rabbit":
+		if e.idx == 17 && e.typ == metaTypeVarInt { // type: the same six numbers; 99 (killer) is white + bribed
+			l.hasVariant, l.variant = true, int32(e.val)
+			l.bribed = false
+			if e.val == 99 {
+				l.variant, l.bribed = 1, true
+			} else if e.val < 0 || e.val > 5 {
+				l.variant = 0
+			}
+		}
+	case "minecraft:fox", "minecraft:mooshroom":
+		if e.idx == 17 && e.typ == metaTypeVarInt { // fox red/snow, mooshroom red/brown: the same two numbers
+			l.hasVariant, l.variant = true, int32(clampIdx(e.val, 2))
+		}
+	case "minecraft:pig", "minecraft:cow", "minecraft:chicken":
+		// The 1.21.5 temperature variants (cold/temperate/warm holders at pig
+		// 18, cow 17, chicken 17) are Bedrock ENTITY PROPERTIES
+		// (minecraft:climate_variant), not actor data; the property sync is
+		// not rendered here yet, so the entry is read (the walk continues)
+		// and dropped.
 	case "minecraft:bee":
 		switch {
 		case e.idx == 17 && e.typ == metaTypeByte: // stung: Bedrock's mark variant
@@ -314,6 +396,7 @@ func actorData(eid int32, st *entState) *packet.SetActorData {
 	flag(l.ignited, protocol.EntityDataFlagIgnited)
 	flag(l.climbing, protocol.EntityDataFlagWallClimbing)
 	flag(l.shaking, protocol.EntityDataFlagShaking)
+	flag(l.bribed, protocol.EntityDataFlagBribed)
 	switch {
 	case l.scale > 0:
 		m[protocol.EntityDataKeyScale] = l.scale
@@ -333,6 +416,9 @@ func actorData(eid int32, st *entState) *packet.SetActorData {
 	}
 	if l.hasTier {
 		m[protocol.EntityDataKeyTradeTier] = l.tradeTier
+	}
+	if l.hasStrength {
+		m[protocol.EntityDataKeyStrength] = l.strength
 	}
 	if l.hasCarry {
 		var rid int32

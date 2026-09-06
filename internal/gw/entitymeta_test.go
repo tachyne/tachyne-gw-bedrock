@@ -124,6 +124,75 @@ func TestMobLooks(t *testing.T) {
 				t.Errorf("pose %+v", l)
 			}
 		}},
+		// A wolf's coat is a wolf_variant holder at 22: the canonical id is the
+		// registry position (ashen 0 … woods 8, alphabetical), Bedrock's the
+		// Geyser ordinal (pale 0, ashen 1, black 2, chestnut 3, rusty 4, snowy
+		// 5, spotted 6, striped 7, woods 8).
+		{"minecraft:wolf", append(entry(17, 0, 0x04), entry(22, tproto.WolfVariantSerializer770, varint(canonicalRegistryID(t, "minecraft:wolf_variant", "minecraft:woods"))...)...),
+			func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+				if !l.tamed || m[protocol.EntityDataKeyVariant] != int32(8) {
+					t.Errorf("woods wolf %+v %v", l, m[protocol.EntityDataKeyVariant])
+				}
+			}},
+		{"minecraft:wolf", entry(22, tproto.WolfVariantSerializer770, varint(canonicalRegistryID(t, "minecraft:wolf_variant", "minecraft:pale"))...),
+			func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+				if m[protocol.EntityDataKeyVariant] != int32(0) {
+					t.Errorf("pale wolf %v", m[protocol.EntityDataKeyVariant])
+				}
+			}},
+		// A cat's coat is a cat_variant holder at 19 (all_black 0 … white 10
+		// canonically; Bedrock white 0 … jellie 10).
+		{"minecraft:cat", entry(19, tproto.CatVariantSerializer770, varint(canonicalRegistryID(t, "minecraft:cat_variant", "minecraft:jellie"))...),
+			func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+				if m[protocol.EntityDataKeyVariant] != int32(10) {
+					t.Errorf("jellie cat %v", m[protocol.EntityDataKeyVariant])
+				}
+			}},
+		{"minecraft:cat", entry(19, tproto.CatVariantSerializer770, varint(canonicalRegistryID(t, "minecraft:cat_variant", "minecraft:all_black"))...),
+			func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+				if m[protocol.EntityDataKeyVariant] != int32(9) {
+					t.Errorf("all_black cat %v", m[protocol.EntityDataKeyVariant])
+				}
+			}},
+		// A horse packs colour | markings<<8 into one INT at 18; Bedrock wants
+		// VARIANT = colour and MARK_VARIANT = markings.
+		{"minecraft:horse", entry(18, 1, varint(4|(3<<8))...), func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+			if m[protocol.EntityDataKeyVariant] != int32(4) || m[protocol.EntityDataKeyMarkVariant] != int32(3) {
+				t.Errorf("horse %v %v", m[protocol.EntityDataKeyVariant], m[protocol.EntityDataKeyMarkVariant])
+			}
+		}},
+		// A llama (and a trader llama, the same Bedrock mob) carries strength at
+		// 19 and its coat at 20, both INT.
+		{"minecraft:llama", append(entry(19, 1, varint(4)...), entry(20, 1, varint(2)...)...), func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+			if m[protocol.EntityDataKeyVariant] != int32(2) || m[protocol.EntityDataKeyStrength] != int32(4) {
+				t.Errorf("llama %v %v", m[protocol.EntityDataKeyVariant], m[protocol.EntityDataKeyStrength])
+			}
+		}},
+		{"minecraft:parrot", entry(19, 1, varint(3)...), func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+			if m[protocol.EntityDataKeyVariant] != int32(3) {
+				t.Errorf("parrot %v", m[protocol.EntityDataKeyVariant])
+			}
+		}},
+		{"minecraft:rabbit", entry(17, 1, varint(5)...), func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+			if m[protocol.EntityDataKeyVariant] != int32(5) || actorFlag(m, protocol.EntityDataFlagBribed) {
+				t.Errorf("salt rabbit %v", m[protocol.EntityDataKeyVariant])
+			}
+		}},
+		{"minecraft:rabbit", entry(17, 1, varint(99)...), func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+			if m[protocol.EntityDataKeyVariant] != int32(1) || !actorFlag(m, protocol.EntityDataFlagBribed) {
+				t.Errorf("killer bunny %v bribed=%v", m[protocol.EntityDataKeyVariant], l.bribed)
+			}
+		}},
+		{"minecraft:fox", entry(17, 1, varint(1)...), func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+			if m[protocol.EntityDataKeyVariant] != int32(1) {
+				t.Errorf("snow fox %v", m[protocol.EntityDataKeyVariant])
+			}
+		}},
+		{"minecraft:mooshroom", entry(17, 1, varint(1)...), func(t *testing.T, l mobLook, m protocol.EntityMetadata) {
+			if m[protocol.EntityDataKeyVariant] != int32(1) {
+				t.Errorf("brown mooshroom %v", m[protocol.EntityDataKeyVariant])
+			}
+		}},
 	}
 	for _, c := range cases {
 		st := &entState{ident: c.ident}
@@ -134,10 +203,35 @@ func TestMobLooks(t *testing.T) {
 		}
 		c.check(t, st.look, actorData(1, st).EntityMetadata)
 	}
+	// A pig's temperature holder is an entity property on Bedrock, not actor
+	// data: it is walked (a later entry still applies) and dropped.
+	pig := &entState{ident: "minecraft:pig"}
+	pigMeta := append(entry(18, tproto.PigVariantSerializer770, varint(2)...), entry(16, 8, 1)...)
+	if !pig.applyMeta(parseSimpleMeta(append(pigMeta, 0xff))) || !pig.look.baby || pig.look.hasVariant {
+		t.Errorf("pig temperature variant should be skipped, the baby flag after it kept: %+v", pig.look)
+	}
 	// A sheep's index 17 is not a pet's: no sitting flag from a fleece byte.
 	st := &entState{ident: "minecraft:sheep"}
 	st.applyMeta(parseSimpleMeta(append(entry(17, 0, 0x01), 0xff)))
 	if st.look.sitting || st.look.color != 1 {
 		t.Errorf("sheep read as a pet: %+v", st.look)
 	}
+}
+
+// canonicalRegistryID is an entry's wire id: its position in the registry
+// list the Java gateways send.
+func canonicalRegistryID(t *testing.T, regID, name string) int32 {
+	t.Helper()
+	for _, reg := range tproto.SyncedRegistries {
+		if reg.ID != regID {
+			continue
+		}
+		for i, e := range reg.Entries {
+			if e == name {
+				return int32(i)
+			}
+		}
+	}
+	t.Fatalf("%s has no %s", regID, name)
+	return -1
 }
