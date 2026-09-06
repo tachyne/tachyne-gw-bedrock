@@ -157,7 +157,8 @@ func recipeUUID(id int32) uuid.UUID {
 type craftStep struct {
 	place *attach.Craft
 	click *attach.WindowClick
-	name  *string // the anvil's rename box
+	name  *string          // the anvil's rename box
+	sel   *attach.SelTrade // the trade screen's chosen offer
 }
 
 // applyCraft resolves a craft request against the mirror (held locked):
@@ -198,6 +199,15 @@ func (m *invMirror) applyCraft(req protocol.ItemStackRequest, recipes *recipeSet
 				return fail()
 			}
 		case *protocol.CraftRecipeStackRequestAction:
+			if m.trades != nil { // a trade screen: the offer by index
+				idx := int(act.RecipeNetworkID) - 1
+				if named || idx < 0 || idx >= len(m.trades) || m.trades[idx].Count <= 0 {
+					return fail()
+				}
+				out, named = craftOutput{result: m.trades[idx]}, true
+				steps = append(steps, craftStep{sel: &attach.SelTrade{Slot: int32(idx)}})
+				continue
+			}
 			o, ok := recipes.output(act.RecipeNetworkID)
 			if named || !ok || m.result != 0 {
 				return fail()

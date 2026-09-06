@@ -135,7 +135,8 @@ func uiContainer(id byte) bool {
 	switch id {
 	case protocol.ContainerCraftingInput, protocol.ContainerCraftingOutputPreview, protocol.ContainerCreatedOutput,
 		protocol.ContainerAnvilInput, protocol.ContainerAnvilMaterial, protocol.ContainerAnvilResultPreview,
-		protocol.ContainerGrindstoneInput, protocol.ContainerGrindstoneAdditional, protocol.ContainerGrindstoneResultPreview:
+		protocol.ContainerGrindstoneInput, protocol.ContainerGrindstoneAdditional, protocol.ContainerGrindstoneResultPreview,
+		protocol.ContainerTradeTwoIngredientOne, protocol.ContainerTradeTwoIngredientTwo, protocol.ContainerTradeTwoResultPreview:
 		return true
 	}
 	return false
@@ -145,7 +146,8 @@ func uiContainer(id byte) bool {
 // (what a craft takes through the created-output name).
 func resultContainer(id byte) bool {
 	switch id {
-	case protocol.ContainerCraftingOutputPreview, protocol.ContainerAnvilResultPreview, protocol.ContainerGrindstoneResultPreview:
+	case protocol.ContainerCraftingOutputPreview, protocol.ContainerAnvilResultPreview, protocol.ContainerGrindstoneResultPreview,
+		protocol.ContainerTradeTwoResultPreview:
 		return true
 	}
 	return false

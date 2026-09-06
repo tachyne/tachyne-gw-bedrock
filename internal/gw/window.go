@@ -66,6 +66,14 @@ var (
 	}
 )
 
+// tradeLayout: Bedrock's trade screen has two ingredient slots and the
+// result, in the UI window.
+var tradeLayout = []winSlot{
+	{protocol.ContainerTradeTwoIngredientOne, 4},
+	{protocol.ContainerTradeTwoIngredientTwo, 5},
+	{protocol.ContainerTradeTwoResultPreview, craftOutputSlot},
+}
+
 var menuWindows = map[int32]menuWindow{
 	0:  {chestLayout(9), protocol.ContainerTypeContainer},    // generic_9x1
 	1:  {chestLayout(18), protocol.ContainerTypeContainer},   // generic_9x2
@@ -81,6 +89,7 @@ var menuWindows = map[int32]menuWindow{
 	14: {furnaceLayout, protocol.ContainerTypeFurnace},       // furnace
 	15: {grindstoneLayout, protocol.ContainerTypeGrindstone}, // grindstone
 	16: {chestLayout(5), protocol.ContainerTypeHopper},       // hopper
+	19: {tradeLayout, protocol.ContainerTypeTrade},           // merchant
 	20: {chestLayout(27), protocol.ContainerTypeContainer},   // shulker_box
 	22: {furnaceLayout, protocol.ContainerTypeSmoker},        // smoker
 }
@@ -91,16 +100,39 @@ type winState struct {
 	mu     sync.Mutex
 	mirror *invMirror // nil = no container open
 	ctype  byte
+	title  string
 	// lastUse is the block the client last used — where the window sits.
 	lastUse [3]int32
+	// lastEntity is the entity the client last used — a trade screen's villager.
+	lastEntity int64
 }
 
-func (w *winState) open(id int32, layout []winSlot, ctype byte) *invMirror {
+func (w *winState) open(id int32, layout []winSlot, ctype byte, title string) *invMirror {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.mirror = newWindowMirror(id, layout)
 	w.ctype = ctype
+	w.title = title
 	return w.mirror
+}
+
+// currentTitle is the open window's title (the trade screen's heading).
+func (w *winState) currentTitle() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.title
+}
+
+func (w *winState) usedEntity(id int64) {
+	w.mu.Lock()
+	w.lastEntity = id
+	w.mu.Unlock()
+}
+
+func (w *winState) usedEntityID() int64 {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.lastEntity
 }
 
 // current returns the open window's mirror (nil when none).

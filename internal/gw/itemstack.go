@@ -49,6 +49,14 @@ type invMirror struct {
 	mapOut func(slot int32) (byte, uint32, bool)    // Java slot → Bedrock container + index
 	layout []winSlot                                // container windows: where Bedrock keeps each container slot
 	result int32                                    // the Java slot a craft's result comes from (-1 = none)
+	trades []attach.ItemStack                       // a trade screen: what each offer sells, by index
+}
+
+// setTrades records a trade screen's offers (what each sells).
+func (m *invMirror) setTrades(results []attach.ItemStack) {
+	m.mu.Lock()
+	m.trades = results
+	m.mu.Unlock()
 }
 
 // newInvMirror is the player's own inventory window.

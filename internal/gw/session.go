@@ -342,6 +342,18 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						},
 					})
 				}
+			case attach.MsgTrades:
+				var tr attach.Trades
+				if json.Unmarshal(payload, &tr) == nil {
+					if tl, ok := parseTrades(tr.Data); ok {
+						if wm := win.current(); wm != nil && wm.window == tl.window {
+							wm.setTrades(tl.results())
+							if pk, err := tradePacket(tl, win.usedEntityID(), int64(welcome.EID), win.currentTitle()); err == nil {
+								send(pk)
+							}
+						}
+					}
+				}
 			case attach.MsgRecipeBook:
 				var rb attach.RecipeBook
 				if json.Unmarshal(payload, &rb) == nil {
@@ -464,10 +476,12 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				var e attach.WindowOpen
 				if json.Unmarshal(payload, &e) == nil {
 					if mw, ok := menuWindows[e.Menu]; ok {
-						win.open(e.ID, mw.layout, mw.ctype)
+						win.open(e.ID, mw.layout, mw.ctype, e.Title)
 						p := win.usedAt()
-						send(&packet.ContainerOpen{WindowID: byte(e.ID), ContainerType: mw.ctype,
-							ContainerPosition: protocol.BlockPos{p[0], p[1], p[2]}, ContainerEntityUniqueID: -1})
+						if mw.ctype != protocol.ContainerTypeTrade { // the trade screen opens on its offers (UpdateTrade)
+							send(&packet.ContainerOpen{WindowID: byte(e.ID), ContainerType: mw.ctype,
+								ContainerPosition: protocol.BlockPos{p[0], p[1], p[2]}, ContainerEntityUniqueID: -1})
+						}
 						if mw.ctype == protocol.ContainerTypeBrewingStand { // vanilla's fuel bar spans 20 uses
 							send(&packet.ContainerSetData{WindowID: byte(e.ID), Key: packet.ContainerDataBrewingStandFuelTotal, Value: 20})
 						}
@@ -826,6 +840,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							if s.name != nil {
 								b.Write(attach.MsgNameItem, attach.NameItem{Name: *s.name})
 							}
+							if s.sel != nil {
+								b.Write(attach.MsgSelTrade, *s.sel)
+							}
 							if s.place != nil {
 								b.Write(attach.MsgCraft, *s.place)
 							}
@@ -858,6 +875,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case *packet.InventoryTransaction:
 				switch td := p.TransactionData.(type) {
 				case *protocol.UseItemOnEntityTransactionData:
+					win.usedEntity(int64(td.TargetEntityRuntimeID))
 					b.Write(attach.MsgUseEntity, attach.UseEntity{
 						Target: int32(td.TargetEntityRuntimeID),
 						Attack: td.ActionType == protocol.UseItemOnEntityActionAttack,
