@@ -640,13 +640,33 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					b.Write(attach.MsgWant, attach.Want{CX: ccx, CZ: ccz, Radius: viewDist.Load(), Dim: curDim.Load()})
 				}
 			case attach.MsgDimension:
-				// Cross-dimension play is not rendered to Bedrock yet (needs
-				// ChangeDimension + per-dimension chunk ranges). Track the dim
-				// so stale chunks are dropped; the client stays put.
+				// Portal travel. The client is sent through Bedrock's dimension
+				// change screen the way Geyser does it: ChangeDimension parked
+				// at (0, 32767, 0), all sound stopped, the change acknowledged
+				// on its behalf, and empty columns around that parking spot so
+				// the screen can finish; the world's Teleport that follows
+				// places the player, and its chunks stream in behind. Java
+				// discards the entity world on a respawn, so the rendered
+				// entities go too — the world re-adds the new dimension's.
 				var e attach.Dimension
-				if json.Unmarshal(payload, &e) == nil {
+				if json.Unmarshal(payload, &e) == nil && e.Dim != curDim.Load() {
 					curDim.Store(e.Dim)
-					log.Printf("session %q: dimension switch to %d not yet rendered on bedrock", name, e.Dim)
+					for eid := range ents {
+						send(&packet.RemoveActor{EntityUniqueID: int64(eid)})
+						delete(ents, eid)
+					}
+					clear(skipped)
+					clear(pendingItems)
+					send(&packet.ChangeDimension{Dimension: e.Dim, Position: mgl32.Vec3{0, 32767, 0}, Respawn: true})
+					send(&packet.StopSound{StopAll: true})
+					send(&packet.PlayerAction{EntityRuntimeID: rt(welcome.EID), ActionType: protocol.PlayerActionDimensionChangeDone})
+					for dx := int32(-3); dx <= 3; dx++ {
+						for dz := int32(-3); dz <= 3; dz++ {
+							send(emptyChunk(e.Dim, dx, dz))
+							send(&packet.UpdateBlock{Position: protocol.BlockPos{dx << 4, 80, dz << 4},
+								NewBlockRuntimeID: bedrockBlockRID(1), Flags: packet.BlockUpdateNetwork})
+						}
+					}
 				}
 			case attach.MsgRehome:
 				// Player migrated to a neighbour shard: SILENT swap of the world
@@ -779,6 +799,18 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						b.Write(attach.MsgWindowClick, m.clickFor(changed))
 					}
 					respondStackRequest(c, req.RequestID, m, changed, ok)
+				}
+			case *packet.PlayerAction:
+				if p.ActionType == protocol.PlayerActionDimensionChangeDone {
+					// The screen is gone: pin the client where the world put it
+					// (the Teleport may have landed while the screen was up).
+					send(&packet.MovePlayer{
+						EntityRuntimeID: rt(welcome.EID),
+						Position:        mgl32.Vec3{float32(pos.X), float32(pos.Y) + playerEyeOffset, float32(pos.Z)},
+						Pitch:           pos.Pitch, Yaw: pos.Yaw, HeadYaw: pos.Yaw,
+						Mode: packet.MoveModeTeleport,
+					})
+					publish(pos.X, pos.Y, pos.Z, viewDist.Load())
 				}
 			case *packet.ContainerClose:
 				if id, ctype, was := win.close(); was {

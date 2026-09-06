@@ -55,20 +55,62 @@ func (registry) HashToRuntimeID(uint32) (uint32, bool)                  { return
 // the same vertical range Bedrock's overworld uses.
 var overworldRange = cube.Range{minY, minY + sections*16 - 1}
 
+// dimLayout is a dimension's Bedrock vertical range and the engine section
+// its floor sits in. The engine stacks every dimension from -64; Bedrock's
+// nether is 0..127 and its end 0..255, so their chunks start at the
+// engine's section 4 (y=0) and the rest is clipped — the same absolute y
+// on both sides, so positions need no translation.
+func dimLayout(dim int32) (cube.Range, int) {
+	switch dim {
+	case packet.DimensionNether:
+		return cube.Range{0, 127}, (0 - minY) / 16
+	case packet.DimensionEnd:
+		return cube.Range{0, 255}, (0 - minY) / 16
+	}
+	return overworldRange, 0
+}
+
+// emptyChunk is an all-air column: what the client needs around itself to
+// finish a dimension change screen before the real terrain streams in.
+func emptyChunk(dim, cx, cz int32) *packet.LevelChunk {
+	r, _ := dimLayout(dim)
+	return encodeChunk(chunk.New(registry{}, r), dim, cx, cz)
+}
+
+// encodeChunk packs a built column into the LevelChunk packet.
+func encodeChunk(c *chunk.Chunk, dim, cx, cz int32) *packet.LevelChunk {
+	d := chunk.Encode(c, chunk.NetworkEncoding)
+	payload := make([]byte, 0, 64*1024)
+	for _, sub := range d.SubChunks {
+		payload = append(payload, sub...)
+	}
+	payload = append(payload, d.Biomes...)
+	payload = append(payload, 0) // border blocks
+
+	return &packet.LevelChunk{
+		Position:      [2]int32{cx, cz},
+		Dimension:     dim,
+		SubChunkCount: uint32(len(d.SubChunks)),
+		RawPayload:    payload,
+	}
+}
+
 // renderChunk re-encodes one domain chunk into a Bedrock LevelChunk packet
 // (classic full-payload path: cache off, literal sub-chunk count).
 func renderChunk(h attach.ChunkHeader, body *attach.ChunkBody) *packet.LevelChunk {
-	c := chunk.New(registry{}, overworldRange)
+	r, base := dimLayout(h.Dim)
+	c := chunk.New(registry{}, r)
 
 	// A TALL Java world (earth mode at true vertical scale) exceeds Bedrock's
 	// hard -64..320 overworld: render the bottom 24 sections and clamp the
 	// rest away — Bedrock players see summits plateau at y=319. Platform
-	// limit, not a bug.
+	// limit, not a bug. The nether and end likewise keep only the sections
+	// inside Bedrock's shorter ranges.
 	secs := h.SectionCount()
-	if secs > sections {
-		secs = sections
+	if top := base + (r.Max()-r.Min()+1)/16; secs > top {
+		secs = top
 	}
-	for sec := 0; sec < secs; sec++ {
+	for sec := base; sec < secs; sec++ {
 		blocks := body.BlockStates[sec*4096 : (sec+1)*4096]
 		baseY := int16(minY + sec*16)
 
@@ -92,20 +134,7 @@ func renderChunk(h attach.ChunkHeader, body *attach.ChunkBody) *packet.LevelChun
 		}
 	}
 
-	d := chunk.Encode(c, chunk.NetworkEncoding)
-	payload := make([]byte, 0, 64*1024)
-	for _, sub := range d.SubChunks {
-		payload = append(payload, sub...)
-	}
-	payload = append(payload, d.Biomes...)
-	payload = append(payload, 0) // border blocks
-
-	return &packet.LevelChunk{
-		Position:      [2]int32{h.CX, h.CZ},
-		Dimension:     h.Dim,
-		SubChunkCount: uint32(len(d.SubChunks)),
-		RawPayload:    payload,
-	}
+	return encodeChunk(c, h.Dim, h.CX, h.CZ)
 }
 
 // defaultSkin is a plain opaque 64×64 skin for PlayerList entries: the domain

@@ -103,8 +103,11 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   charge and fuse; slime and magma cube size; spiders climbing; zombies
   converting; villager and zombie villager profession, biome and tier;
   frog and axolotl variants; the enderman's carried block; the guardian
-  beam target; name tags; primed TNT fuse); block-break, bone-meal, crit,
-  explosion, poof and bubble
+  beam target; name tags; primed TNT fuse); the Nether and the End
+  (portal travel goes through Bedrock's dimension-change screen; their
+  chunks render at the same absolute y inside Bedrock's shorter 0..127
+  and 0..255 ranges); block-break, bone-meal, crit, explosion, poof and
+  bubble
   particles as level events; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers
   and brewing stands open at the used block with their slots where Bedrock
@@ -116,9 +119,6 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   beacon, trading… are closed straight back so the world does not wait on
   them), the entity metadata the engine does not yet sync (wolf, cat,
   horse, llama, parrot and rabbit variants and collars), most particles,
-  nether/end
-  (ChangeDimension + per-dimension chunk ranges — engine chunks are 24
-  sections everywhere; Bedrock nether is 8),
   boat wood variants, real Java skin → Bedrock skin conversion, on_ground
   derivation (a Y-stability heuristic rather than real ground detection, so
   Bedrock fall damage is unreliable).
