@@ -1,14 +1,11 @@
 package gw
 
 import (
-	"bytes"
-	"encoding/binary"
 	"strings"
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	attach "github.com/tachyne/tachyne-common/attach"
-	tproto "github.com/tachyne/tachyne-common/protocol"
 )
 
 // Signs. Java carries a sign's two sides as block-entity NBT (four
@@ -76,51 +73,6 @@ func signSideFromNBT(v any) attach.SignSide {
 		s.Glow = g != 0
 	}
 	return s
-}
-
-// chunkSigns pulls the signs out of a chunk's block-entity section
-// (count, then per entry: packed xz, y, type, NBT) as Bedrock block
-// entities. Entries whose NBT is not a sign's are walked past.
-func chunkSigns(h attach.ChunkHeader) []packet.Packet {
-	if len(h.BEs) == 0 {
-		return nil
-	}
-	r := bytes.NewReader(h.BEs)
-	n, err := tproto.ReadVarInt(r)
-	if err != nil || n <= 0 || n > 4096 {
-		return nil
-	}
-	var out []packet.Packet
-	for i := int32(0); i < n; i++ {
-		xz, err := r.ReadByte()
-		if err != nil {
-			return out
-		}
-		var yb [2]byte
-		if _, err := r.Read(yb[:]); err != nil {
-			return out
-		}
-		y := int32(int16(binary.BigEndian.Uint16(yb[:])))
-		typ, err := tproto.ReadVarInt(r)
-		if err != nil {
-			return out
-		}
-		tag, ok := readJavaNBT(r)
-		if !ok {
-			return out
-		}
-		if typ != blockEntitySign && typ != blockEntityHangingSign {
-			continue
-		}
-		x, z := h.CX*16+int32(xz>>4), h.CZ*16+int32(xz&15)
-		waxed := false
-		if w, ok := tag["is_waxed"].(byte); ok {
-			waxed = w != 0
-		}
-		out = append(out, signData(x, y, z, signSideFromNBT(tag["front_text"]), signSideFromNBT(tag["back_text"]),
-			waxed, typ == blockEntityHangingSign))
-	}
-	return out
 }
 
 // signLines splits an edited Bedrock sign text into Java's four lines.

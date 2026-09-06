@@ -285,6 +285,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		pendingItems := map[int32]*entState{} // dropped items waiting for their stack (metadata) before AddItemActor
 		names := map[[16]byte]string{}        // uuid → username (PlayerInfo)
 		links := map[int32]int32{}            // rider → vehicle (actor links)
+		banners := map[[3]int32]int32{}       // banner base colours by position (Bedrock keeps them on the block entity)
 		adv := newAdvBook()                   // advancement progress, for the toast
 		for {
 			typ, payload, err := attach.ReadFrame(b.Get())
@@ -306,7 +307,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					errs <- err
 					return
 				}
-				for _, pk := range chunkSigns(h) { // the chunk's signs, as block entities
+				for _, pk := range chunkBlockEntities(h, body, banners) { // signs, banners, campfires
 					send(pk)
 				}
 			case attach.MsgTime:
@@ -365,6 +366,21 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						}
 					}
 				}
+			case attach.MsgBannerPatterns:
+				var e attach.BannerPatterns
+				if json.Unmarshal(payload, &e) == nil {
+					send(bannerData(e.X, e.Y, e.Z, banners[[3]int32{e.X, e.Y, e.Z}], e.Layers))
+				}
+			case attach.MsgCampfireItems:
+				var e attach.CampfireItems
+				if json.Unmarshal(payload, &e) == nil {
+					send(campfireData(e.X, e.Y, e.Z, e.Items))
+				}
+			case attach.MsgBlockEvent:
+				var e attach.BlockEvent
+				if json.Unmarshal(payload, &e) == nil && e.Action == 1 { // the bell's ring (the one block event the world sends)
+					send(bellData(e.X, e.Y, e.Z, e.Param))
+				}
 			case attach.MsgSignText:
 				var e attach.SignText
 				if json.Unmarshal(payload, &e) == nil {
@@ -421,6 +437,12 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						NewBlockRuntimeID: bedrockBlockRID(e.State),
 						Flags:             packet.BlockUpdateNetwork,
 					})
+					pos := [3]int32{int32(e.X), int32(e.Y), int32(e.Z)}
+					if isBanner(e.State) { // its layers arrive in their own frame; remember the base for it
+						banners[pos] = bannerBaseFor(e.State)
+					} else {
+						delete(banners, pos)
+					}
 				}
 			case attach.MsgPlayerInfo:
 				var e attach.PlayerInfo

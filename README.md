@@ -131,7 +131,10 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   the world's jump-to-page button); signs (standing signs come out of
   the chunk's block-entity section, edits and the world's sign frames
   become Bedrock sign block entities, the world's editor opens Bedrock's,
-  and the edited side goes back as four lines); the creative inventory
+  and the edited side goes back as four lines); banners (layers in
+  Bedrock's pattern codes on the base colour read off the block state),
+  campfires (their four cooking items) and ringing bells, all as block
+  entities from the chunk section or the world's frames; the creative inventory
   (every mapped item listed, blocks under construction; taking, dropping
   and destroying become the world's creative slot sets, or declared
   clicks inside a container); dropping items (from a window, or the held
