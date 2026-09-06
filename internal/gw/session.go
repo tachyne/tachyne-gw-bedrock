@@ -1,6 +1,7 @@
 package gw
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -49,6 +50,45 @@ var canonicalPlayerType = func() int32 {
 	panic("gw: minecraft:player missing from bedrockEntityIDs")
 }()
 
+// canonicalItemType is the canonical entity-type ID of "minecraft:item".
+var canonicalItemType = func() int32 {
+	for i, id := range bedrockEntityIDs {
+		if id == "minecraft:item" {
+			return int32(i)
+		}
+	}
+	return -1
+}()
+
+// itemMetaStack pulls the dropped item's stack (index 8, a Slot: count,
+// then id) out of a canonical set_entity_data list. Components that may
+// follow are not needed for the pick-up icon and are left unread.
+func itemMetaStack(meta []byte) (attach.ItemStack, bool) {
+	r := bytes.NewReader(meta)
+	for {
+		idx, err := r.ReadByte()
+		if err != nil || idx == 0xff {
+			return attach.ItemStack{}, false
+		}
+		typ, err := protocol.ReadVarInt(r)
+		if err != nil {
+			return attach.ItemStack{}, false
+		}
+		if idx != 8 || typ != 7 { // 7 = the Slot serializer (1.21.5)
+			return attach.ItemStack{}, false // only the item entry is understood
+		}
+		count, err := protocol.ReadVarInt(r)
+		if err != nil || count <= 0 {
+			return attach.ItemStack{}, false
+		}
+		id, err := protocol.ReadVarInt(r)
+		if err != nil {
+			return attach.ItemStack{}, false
+		}
+		return attach.ItemStack{ID: id, Count: count}, true
+	}
+}
+
 // bedrockGameMode maps a domain game mode (Java numbering) to Bedrock's.
 func bedrockGameMode(mode int32) int32 {
 	if mode == 3 {
@@ -62,8 +102,9 @@ func rt(eid int32) uint64 { return uint64(int64(eid)) }
 // entState tracks what the client knows about one remote entity so absolute
 // domain events can be re-rendered whole (Bedrock movement is absolute).
 type entState struct {
-	player  bool
-	pos     mgl32.Vec3 // feet
+	player   bool
+	pos      mgl32.Vec3 // feet
+	velocity mgl32.Vec3 // a dropped item's launch (AddItemActor carries it)
 	yaw     float32
 	pitch   float32
 	headYaw float32
@@ -228,6 +269,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	go func() {
 		ents := map[int32]*entState{}  // remote entities the client renders
 		skipped := map[int32]bool{}    // entities with no Bedrock form
+		pendingItems := map[int32]*entState{} // dropped items waiting for their stack (metadata) before AddItemActor
 		names := map[[16]byte]string{} // uuid → username (PlayerInfo)
 		for {
 			typ, payload, err := attach.ReadFrame(b.Get())
@@ -360,6 +402,11 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							EntityMetadata: baseMetadata(0.6, 1.8),
 							AbilityData:    protocol.AbilityData{EntityUniqueID: int64(e.EID)},
 						})
+					case e.Type == canonicalItemType:
+						// A dropped item is an AddItemActor with its stack, which
+						// arrives in the metadata frame right behind the add.
+						st.velocity = mgl32.Vec3{float32(e.VX), float32(e.VY), float32(e.VZ)}
+						pendingItems[e.EID] = st
 					default:
 						ident := ""
 						if int(e.Type) < len(bedrockEntityIDs) {
@@ -431,6 +478,24 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					st.yaw, st.pitch = e.Yaw, e.Pitch
 					moveEntityVia(send, c, e.EID, st, e.OnGround)
 				}
+			case attach.MsgEntityMeta:
+				var e attach.EntityMeta
+				if json.Unmarshal(payload, &e) == nil {
+					if st := pendingItems[e.EID]; st != nil {
+						if stack, ok := itemMetaStack(e.Meta); ok {
+							delete(pendingItems, e.EID)
+							ents[e.EID] = st
+							send(&packet.AddItemActor{
+								EntityUniqueID:  int64(e.EID),
+								EntityRuntimeID: rt(e.EID),
+								Item:            bedrockStack(stack),
+								Position:        st.pos,
+								Velocity:        st.velocity,
+								EntityMetadata:  baseMetadata(0.25, 0.25),
+							})
+						}
+					}
+				}
 			case attach.MsgHurt:
 				// The hurt flash + tilt (Java's damage event) is an actor event here.
 				var e attach.Hurt
@@ -456,6 +521,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				var e attach.EntityRemove
 				if json.Unmarshal(payload, &e) == nil {
 					for _, eid := range e.EIDs {
+						delete(pendingItems, eid)
 						if skipped[eid] {
 							delete(skipped, eid)
 							continue
