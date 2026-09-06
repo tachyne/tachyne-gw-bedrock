@@ -498,6 +498,23 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						}
 					}
 				}
+			case attach.MsgEquipment:
+				// What an entity holds and wears (players' own hotbar is the
+				// inventory's business, so a player gets only its armour).
+				var e attach.Equipment
+				if json.Unmarshal(payload, &e) == nil {
+					if e.EID != welcome.EID {
+						send(&packet.MobEquipment{EntityRuntimeID: rt(e.EID), NewItem: bedrockStack(e.Slots[attach.EquipMainHand])})
+					}
+					send(&packet.MobArmourEquipment{
+						EntityRuntimeID: rt(e.EID),
+						Helmet:          bedrockStack(e.Slots[attach.EquipHead]),
+						Chestplate:      bedrockStack(e.Slots[attach.EquipChest]),
+						Leggings:        bedrockStack(e.Slots[attach.EquipLegs]),
+						Boots:           bedrockStack(e.Slots[attach.EquipFeet]),
+						Body:            bedrockStack(e.Slots[attach.EquipBody]),
+					})
+				}
 			case attach.MsgSound:
 				var e attach.Sound
 				if json.Unmarshal(payload, &e) == nil {

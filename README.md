@@ -94,13 +94,16 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   InventoryTransaction + PlayerAuthInput BlockActions); health, hunger,
   saturation and XP relayed as attribute updates; the death screen and
   the respawn button (Respawn packets both ways); hurt flashes and death
-  animations as actor events.
+  animations as actor events; dropped items as item actors carrying their
+  stack; the common sounds (mob voices, hits, chests, doors, explosions…)
+  as level sound events; what entities hold and wear (mob equipment and
+  armour packets).
 - NOT YET: Java advancement toasts/screen (completions reach Bedrock
-  players as chat announcements only),
-  inventory/windows rendering, equipment/metadata rendering,
-  sounds/particles, nether/end
+  players as chat announcements only), container windows (only the
+  player's own inventory renders), entity metadata (baby, sneaking,
+  variants…), particles, nether/end
   (ChangeDimension + per-dimension chunk ranges — engine chunks are 24
-  sections everywhere; Bedrock nether is 8), item entities (AddItemActor),
+  sections everywhere; Bedrock nether is 8),
   boat wood variants, real Java skin → Bedrock skin conversion, on_ground
   derivation (a Y-stability heuristic rather than real ground detection, so
   Bedrock fall damage is unreliable).
