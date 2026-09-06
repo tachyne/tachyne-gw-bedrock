@@ -269,6 +269,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	// writes what the engine sends, the client reader resolves stack requests
 	// against it — so it carries its own lock rather than living in either.
 	mirror := newInvMirror()
+	win := &winState{} // the open container window, if any
 
 	// World → client.
 	go func() {
@@ -433,19 +434,39 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						})
 					}
 				}
+			case attach.MsgWindowOpen:
+				var e attach.WindowOpen
+				if json.Unmarshal(payload, &e) == nil {
+					if mw, ok := menuWindows[e.Menu]; ok {
+						win.open(e.ID, mw.size, mw.ctype)
+						p := win.usedAt()
+						send(&packet.ContainerOpen{WindowID: byte(e.ID), ContainerType: mw.ctype,
+							ContainerPosition: protocol.BlockPos{p[0], p[1], p[2]}, ContainerEntityUniqueID: -1})
+					} else {
+						b.Write(attach.MsgWindowClose, attach.WindowClose{}) // no Bedrock twin: do not leave the world waiting
+					}
+				}
 			case attach.MsgWindowItems:
-				// Only the player's own window for now: containers need
-				// ContainerOpen and a per-window slot map of their own.
 				var e attach.WindowItems
-				if json.Unmarshal(payload, &e) == nil && e.ID == 0 {
-					mirror.setAll(e.Slots, e.Cursor)
-					sendPlayerInventory(c, e.Slots)
+				if json.Unmarshal(payload, &e) == nil {
+					if e.ID == 0 {
+						mirror.setAll(e.Slots, e.Cursor)
+						sendPlayerInventory(c, e.Slots)
+					} else if wm := win.current(); wm != nil && wm.window == e.ID {
+						wm.setAll(e.Slots, e.Cursor)
+						sendWindowItems(c, wm, e.Slots)
+					}
 				}
 			case attach.MsgWindowSlot:
 				var e attach.WindowSlot
-				if json.Unmarshal(payload, &e) == nil && e.ID == 0 {
-					mirror.set(e.Slot, e.Item)
-					sendInventorySlot(c, e.Slot, e.Item)
+				if json.Unmarshal(payload, &e) == nil {
+					if e.ID == 0 {
+						mirror.set(e.Slot, e.Item)
+						sendInventorySlot(c, e.Slot, e.Item)
+					} else if wm := win.current(); wm != nil && wm.window == e.ID {
+						wm.set(e.Slot, e.Item)
+						sendWindowSlot(c, wm, e.Slot, e.Item)
+					}
 				}
 			case attach.MsgEntityLink:
 				// Leashes are METADATA on Bedrock, not an actor link: the
@@ -737,12 +758,21 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case *packet.ItemStackRequest:
 				// Bedrock's transactional inventory, resolved against our copy
 				// of the window and reported to the engine as a Java click.
+				m := mirror
+				if wm := win.current(); wm != nil {
+					m = wm // an open container: its window, its slot map
+				}
 				for _, req := range p.Requests {
-					changed, ok := mirror.applyRequest(req)
+					changed, ok := m.applyRequest(req)
 					if ok {
-						b.Write(attach.MsgWindowClick, mirror.clickFor(changed))
+						b.Write(attach.MsgWindowClick, m.clickFor(changed))
 					}
-					respondStackRequest(c, req.RequestID, mirror, changed, ok)
+					respondStackRequest(c, req.RequestID, m, changed, ok)
+				}
+			case *packet.ContainerClose:
+				if id, ctype, was := win.close(); was {
+					b.Write(attach.MsgWindowClose, attach.WindowClose{})
+					send(&packet.ContainerClose{WindowID: byte(id), ContainerType: ctype})
 				}
 			case *packet.InventoryTransaction:
 				switch td := p.TransactionData.(type) {
@@ -754,6 +784,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				case *protocol.UseItemTransactionData:
 					switch td.ActionType {
 					case protocol.UseItemActionClickBlock:
+						win.used(td.BlockPosition.X(), td.BlockPosition.Y(), td.BlockPosition.Z())
 						b.Write(attach.MsgPlace, attach.Place{
 							X: int(td.BlockPosition.X()), Y: int(td.BlockPosition.Y()), Z: int(td.BlockPosition.Z()),
 							Face: td.BlockFace,

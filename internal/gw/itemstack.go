@@ -41,11 +41,57 @@ const (
 // so a Bedrock transaction can be resolved into a Java click; the engine
 // remains the authority and its next window frame overwrites this wholesale.
 type invMirror struct {
-	mu    sync.Mutex
-	slots [javaWindowSize + 1]attach.ItemStack // +1: the cursor
+	mu     sync.Mutex
+	slots  []attach.ItemStack                       // the window's Java slots, then the cursor last
+	cursor int32                                    // index of the cursor slot
+	window int32                                    // the Java window id the clicks name (0 = the player's own)
+	mapIn  func(container, slot byte) (int32, bool) // Bedrock slot → Java slot
+	mapOut func(slot int32) (byte, uint32, bool)    // Java slot → Bedrock container + index
 }
 
-func newInvMirror() *invMirror { return &invMirror{} }
+// newInvMirror is the player's own inventory window.
+func newInvMirror() *invMirror {
+	return &invMirror{slots: make([]attach.ItemStack, javaWindowSize+1), cursor: javaCursorSlot,
+		mapIn: bedrockToJavaSlot, mapOut: javaToBedrockSlot}
+}
+
+// newWindowMirror is a container window of size slots: Java lays them out as
+// the container first, then the player's main inventory (27) and hotbar (9).
+func newWindowMirror(id int32, size int) *invMirror {
+	m := &invMirror{slots: make([]attach.ItemStack, size+36+1), cursor: int32(size + 36), window: id}
+	m.mapIn = func(container, slot byte) (int32, bool) {
+		switch container {
+		case protocol.ContainerCursor:
+			return m.cursor, true
+		case protocol.ContainerLevelEntity:
+			if int(slot) < size {
+				return int32(slot), true
+			}
+		case protocol.ContainerInventory, protocol.ContainerHotBar, protocol.ContainerCombinedHotBarAndInventory:
+			if slot < 9 {
+				return int32(size+27) + int32(slot), true // hotbar comes last in Java
+			}
+			if slot < bedrockInvSize {
+				return int32(size) + int32(slot) - 9, true
+			}
+		}
+		return 0, false
+	}
+	m.mapOut = func(slot int32) (byte, uint32, bool) {
+		switch {
+		case slot >= 0 && int(slot) < size:
+			return protocol.ContainerLevelEntity, uint32(slot), true
+		case int(slot) >= size && int(slot) < size+27:
+			return protocol.ContainerInventory, uint32(int(slot) - size + 9), true
+		case int(slot) >= size+27 && int(slot) < size+36:
+			return protocol.ContainerInventory, uint32(int(slot) - size - 27), true
+		case slot == m.cursor:
+			return protocol.ContainerCursor, 0, true
+		}
+		return 0, 0, false
+	}
+	return m
+}
 
 // set records a slot the engine has told us about.
 func (m *invMirror) set(slot int32, st attach.ItemStack) {
@@ -57,6 +103,21 @@ func (m *invMirror) set(slot int32, st attach.ItemStack) {
 	m.slots[slot] = st
 }
 
+// playerView is the 46-slot Java player window as a container window's
+// player part shows it (for the shared player-inventory sender).
+func (m *invMirror) playerView() []attach.ItemStack {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.window == 0 {
+		return append([]attach.ItemStack(nil), m.slots[:javaWindowSize]...)
+	}
+	size := len(m.slots) - 36 - 1
+	view := make([]attach.ItemStack, javaWindowSize)
+	copy(view[javaMainFirst:javaHotbarFirst], m.slots[size:size+27])
+	copy(view[javaHotbarFirst:javaHotbarFirst+9], m.slots[size+27:size+36])
+	return view
+}
+
 // setAll replaces the whole window.
 func (m *invMirror) setAll(slots []attach.ItemStack, cursor attach.ItemStack) {
 	m.mu.Lock()
@@ -65,11 +126,11 @@ func (m *invMirror) setAll(slots []attach.ItemStack, cursor attach.ItemStack) {
 		m.slots[i] = attach.ItemStack{}
 	}
 	for i, st := range slots {
-		if i < javaWindowSize {
+		if int32(i) < m.cursor {
 			m.slots[i] = st
 		}
 	}
-	m.slots[javaCursorSlot] = cursor
+	m.slots[m.cursor] = cursor
 }
 
 // bedrockToJavaSlot is javaToBedrockSlot backwards, plus the cursor, which
@@ -142,7 +203,7 @@ func (m *invMirror) swap(a, b int32) bool {
 func (m *invMirror) applyRequest(req protocol.ItemStackRequest) ([]int32, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	before := m.slots
+	before := append([]attach.ItemStack(nil), m.slots...)
 	touched := map[int32]bool{}
 
 	for _, a := range req.Actions {
@@ -158,8 +219,8 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest) ([]int32, bool) 
 				return nil, false
 			}
 		case *protocol.SwapStackRequestAction:
-			src, ok1 := bedrockToJavaSlot(act.Source.Container.ContainerID, act.Source.Slot)
-			dst, ok2 := bedrockToJavaSlot(act.Destination.Container.ContainerID, act.Destination.Slot)
+			src, ok1 := m.mapIn(act.Source.Container.ContainerID, act.Source.Slot)
+			dst, ok2 := m.mapIn(act.Destination.Container.ContainerID, act.Destination.Slot)
 			if !ok1 || !ok2 || !m.swap(src, dst) {
 				m.slots = before
 				return nil, false
@@ -182,8 +243,8 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest) ([]int32, bool) 
 }
 
 func (m *invMirror) applyTransfer(from, to protocol.StackRequestSlotInfo, count int, touched map[int32]bool) bool {
-	src, ok1 := bedrockToJavaSlot(from.Container.ContainerID, from.Slot)
-	dst, ok2 := bedrockToJavaSlot(to.Container.ContainerID, to.Slot)
+	src, ok1 := m.mapIn(from.Container.ContainerID, from.Slot)
+	dst, ok2 := m.mapIn(to.Container.ContainerID, to.Slot)
 	if !ok1 || !ok2 || !m.transfer(src, dst, count) {
 		return false
 	}
@@ -196,9 +257,9 @@ func (m *invMirror) applyTransfer(from, to protocol.StackRequestSlotInfo, count 
 func (m *invMirror) clickFor(changed []int32) attach.WindowClick {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	e := attach.WindowClick{Cursor: m.slots[javaCursorSlot]}
+	e := attach.WindowClick{ID: m.window, Cursor: m.slots[m.cursor]}
 	for _, slot := range changed {
-		if slot == javaCursorSlot {
+		if slot == m.cursor {
 			continue // carried in Cursor, not as a slot
 		}
 		e.Changed = append(e.Changed, attach.ClickChange{
@@ -229,10 +290,10 @@ func respondStackRequest(w packetWriter, requestID int32, m *invMirror, changed 
 	for _, slot := range changed {
 		var cid byte
 		var idx uint32
-		if slot == javaCursorSlot {
+		if slot == m.cursor {
 			cid, idx = protocol.ContainerCursor, 0
 		} else {
-			c, i, mapped := javaToBedrockSlot(slot)
+			c, i, mapped := m.mapOut(slot)
 			if !mapped {
 				continue
 			}

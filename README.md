@@ -99,10 +99,13 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   as level sound events; what entities hold and wear (mob equipment and
   armour packets); burning, sneaking and baby entities (actor flags and
   scale); block-break, bone-meal, crit, explosion, poof and bubble
-  particles as level events.
+  particles as level events; chest-shaped container windows (chests,
+  barrels, shulker boxes, hoppers, dispensers and droppers open at the
+  used block, clicks reach the world through the per-window slot map).
 - NOT YET: Java advancement toasts/screen (completions reach Bedrock
-  players as chat announcements only), container windows (only the
-  player's own inventory renders), most entity metadata (variants,
+  players as chat announcements only), non-chest menus (furnaces,
+  crafting tables, anvils, enchanting, brewing… are closed straight back
+  so the world does not wait on them), most entity metadata (variants,
   colours, poses beyond crouching), most particles, nether/end
   (ChangeDimension + per-dimension chunk ranges — engine chunks are 24
   sections everywhere; Bedrock nether is 8),
