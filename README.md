@@ -139,7 +139,12 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   twin), abilities and game-mode changes (flight in creative), rain and
   thunder, other players' arm swings, the item-pickup animation, a
   server-set hotbar slot, difficulty, boss bars (an invisible stand-in
-  carries the bar) and a ridden vehicle's snap-back; the creative inventory
+  carries the bar) and a ridden vehicle's snap-back; filled maps (the
+  world's colour patches accumulate into a per-map texture in vanilla's
+  palette, markers become Bedrock icons, the map id rides on the item,
+  and the client's map requests are answered); scoreboards (objectives
+  in the list, sidebar and below-name slots, per-owner lines as fake
+  players, team prefix/suffix/colour on the names); the creative inventory
   (every mapped item listed, blocks under construction; taking, dropping
   and destroying become the world's creative slot sets, or declared
   clicks inside a container); dropping items (from a window, or the held

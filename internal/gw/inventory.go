@@ -71,6 +71,15 @@ func bedrockItemIDs(id int32) (rid, data int32, ok bool) {
 	return rid, int32(ref.Data), ok
 }
 
+// stackNBT is the Bedrock NBT a stack carries: a book's pages, a filled
+// map's id, or nothing.
+func stackNBT(st attach.ItemStack) map[string]any {
+	if nbt := bookNBT(st); nbt != nil {
+		return nbt
+	}
+	return mapItemNBT(st)
+}
+
 // bedrockStack renders a domain item stack for the Bedrock client. An unknown
 // or unmapped item comes out empty rather than wrong: showing the WRONG item is
 // worse than showing a gap, because a player would act on it.
@@ -90,7 +99,7 @@ func bedrockStack(st attach.ItemStack) protocol.ItemInstance {
 				MetadataValue: uint32(data),
 			},
 			Count:   uint16(st.Count),
-			NBTData: bookNBT(st),
+			NBTData: stackNBT(st),
 		},
 	}
 }

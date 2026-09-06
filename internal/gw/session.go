@@ -259,6 +259,8 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	mirror := newInvMirror()
 	win := &winState{}                             // the open container window, if any
 	var signEdit atomic.Pointer[attach.SignEditor] // the sign side the world opened for editing
+	maps := newMapStore()                          // map textures, for the frames and the client's requests
+	board := newScoreboard()                       // the Java scoreboard, redrawn into Bedrock's slots
 	recipes := newRecipeSet()                      // what the client may craft (CraftingData); written by the world pump, read by requests
 
 	// World → client.
@@ -348,6 +350,39 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							}
 						}
 					}
+				}
+			case attach.MsgObjective:
+				var e attach.Objective
+				if json.Unmarshal(payload, &e) == nil {
+					for _, pk := range board.objective(e) {
+						send(pk)
+					}
+				}
+			case attach.MsgDisplaySlot:
+				var e attach.DisplaySlot
+				if json.Unmarshal(payload, &e) == nil {
+					for _, pk := range board.display(e) {
+						send(pk)
+					}
+				}
+			case attach.MsgScore:
+				var e attach.Score
+				if json.Unmarshal(payload, &e) == nil {
+					for _, pk := range board.score(e) {
+						send(pk)
+					}
+				}
+			case attach.MsgTeam:
+				var e attach.Team
+				if json.Unmarshal(payload, &e) == nil {
+					for _, pk := range board.team(e) {
+						send(pk)
+					}
+				}
+			case attach.MsgMapData:
+				var e attach.MapData
+				if json.Unmarshal(payload, &e) == nil {
+					send(maps.apply(e, curDim.Load()))
 				}
 			case attach.MsgEffect:
 				var e attach.Effect
@@ -1047,6 +1082,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					}
 					b.Write(attach.MsgSignUpdate, attach.SignUpdate{X: p.Position.X(), Y: p.Position.Y(), Z: p.Position.Z(),
 						Front: ed.Front, Lines: signLines(text)})
+				}
+			case *packet.MapInfoRequest:
+				if pk := maps.get(int32(p.MapID), curDim.Load()); pk != nil {
+					send(pk)
 				}
 			case *packet.LecternUpdate:
 				if wm := win.current(); wm != nil && wm.lecternBook {
