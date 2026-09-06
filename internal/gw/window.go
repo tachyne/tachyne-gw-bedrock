@@ -103,6 +103,14 @@ var (
 	}
 )
 
+// cartographyLayout: map, paper/compass/glass pane, result — in the UI
+// window; the result is whatever the world previewed.
+var cartographyLayout = []winSlot{
+	{protocol.ContainerCartographyInput, 12},
+	{protocol.ContainerCartographyAdditional, 13},
+	{protocol.ContainerCartographyResultPreview, craftOutputSlot},
+}
+
 var menuWindows = map[int32]menuWindow{
 	0:  {chestLayout(9), protocol.ContainerTypeContainer},      // generic_9x1
 	1:  {chestLayout(18), protocol.ContainerTypeContainer},     // generic_9x2
@@ -126,6 +134,7 @@ var menuWindows = map[int32]menuWindow{
 	21: {smithingLayout, protocol.ContainerTypeSmithingTable},  // smithing
 	24: {stonecutterLayout, protocol.ContainerTypeStonecutter}, // stonecutter
 	22: {furnaceLayout, protocol.ContainerTypeSmoker},          // smoker
+	23: {cartographyLayout, protocol.ContainerTypeCartography}, // cartography
 }
 
 // winState is the container window open for this client, shared between

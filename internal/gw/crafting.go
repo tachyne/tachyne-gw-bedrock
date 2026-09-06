@@ -290,8 +290,14 @@ func (m *invMirror) applyCraft(req protocol.ItemStackRequest, recipes *recipeSet
 				steps = append(steps, craftStep{sel: &attach.SelTrade{Slot: int32(idx)}})
 				continue
 			}
+			if m.result > 0 { // any other result-slot menu (cartography): the world's preview
+				if !preview() {
+					return fail()
+				}
+				continue
+			}
 			o, ok := recipes.output(act.RecipeNetworkID)
-			if named || !ok || m.result != 0 {
+			if named || !ok {
 				return fail()
 			}
 			out, named = o, true

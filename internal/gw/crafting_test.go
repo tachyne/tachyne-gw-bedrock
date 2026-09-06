@@ -228,3 +228,30 @@ func TestStonecutter(t *testing.T) {
 		t.Errorf("mirror %+v cursor %+v", m.slots[0], m.slots[m.cursor])
 	}
 }
+
+// The cartography table takes the world's preview through slot 2, like
+// the anvil, on a plain craft request.
+func TestCartographyTable(t *testing.T) {
+	mapItem, paper := mappedItem(t, 0), mappedItem(t, 1)
+	w := &winState{}
+	m := w.open(13, cartographyLayout, protocol.ContainerTypeCartography, "Cartography Table")
+	if m.result != 2 {
+		t.Fatalf("result slot %d", m.result)
+	}
+	m.set(0, attach.ItemStack{ID: mapItem, Count: 1})
+	m.set(1, attach.ItemStack{ID: paper, Count: 2})
+	m.set(2, attach.ItemStack{ID: mapItem, Count: 1})
+	req := protocol.ItemStackRequest{RequestID: 6, Actions: []protocol.StackRequestAction{
+		&protocol.CraftRecipeStackRequestAction{},
+		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerCartographyInput, 12)}},
+		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerCartographyAdditional, 13)}},
+		takeAction(1, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerCursor, 0)),
+	}}
+	_, steps, ok := m.applyRequest(req, nil)
+	if !ok || len(steps) != 1 || steps[0].click == nil || steps[0].click.Slot != 2 || m.slots[1].Count != 1 || m.slots[m.cursor].ID != mapItem {
+		t.Fatalf("cartography: ok=%v steps=%+v", ok, steps)
+	}
+	if mw := menuWindows[23]; mw.ctype != protocol.ContainerTypeCartography {
+		t.Error("cartography menu")
+	}
+}

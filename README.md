@@ -122,8 +122,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   before the take); the smithing table (netherite upgrades as transform
   recipes, armor trims through Bedrock's trim data and the tag-written
   trim recipe), the loom (Bedrock's pattern pick becomes the world's
-  row) and the beacon (the chosen effects live on its block entity, and
-  the payment becomes the world's SetBeacon); the creative inventory
+  row), the beacon (the chosen effects live on its block entity, and
+  the payment becomes the world's SetBeacon) and the cartography table
+  (the world's preview, taken like the anvil's); the creative inventory
   (every mapped item listed, blocks under construction; taking, dropping
   and destroying become the world's creative slot sets, or declared
   clicks inside a container); dropping items (from a window, or the held
@@ -143,9 +144,8 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   keeps them and the burn/cook/brew bars as container data; clicks reach
   the world through the per-window slot map).
 - NOT YET: the Java advancements screen (Bedrock has no tree to show;
-  completions toast and are announced in chat), the remaining menus
-  (cartography table, lectern, crafter are closed straight back so the
-  world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
+  completions toast and are announced in chat), the lectern and the
+  crafter (closed straight back so the world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
   horse, llama, parrot and rabbit variants and collars), the particles
   Geyser's table has no Bedrock name for, Java players' skins (the world
   runs without Mojang profiles, so Java players stay grey on Bedrock).

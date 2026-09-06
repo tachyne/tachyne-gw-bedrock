@@ -142,7 +142,8 @@ func uiContainer(id byte) bool {
 		protocol.ContainerSmithingTableTemplate, protocol.ContainerSmithingTableInput, protocol.ContainerSmithingTableMaterial,
 		protocol.ContainerSmithingTableResultPreview,
 		protocol.ContainerLoomInput, protocol.ContainerLoomDye, protocol.ContainerLoomMaterial, protocol.ContainerLoomResultPreview,
-		protocol.ContainerBeaconPayment:
+		protocol.ContainerBeaconPayment,
+		protocol.ContainerCartographyInput, protocol.ContainerCartographyAdditional, protocol.ContainerCartographyResultPreview:
 		return true
 	}
 	return false
@@ -154,7 +155,7 @@ func resultContainer(id byte) bool {
 	switch id {
 	case protocol.ContainerCraftingOutputPreview, protocol.ContainerAnvilResultPreview, protocol.ContainerGrindstoneResultPreview,
 		protocol.ContainerTradeTwoResultPreview, protocol.ContainerStonecutterResultPreview,
-		protocol.ContainerSmithingTableResultPreview, protocol.ContainerLoomResultPreview:
+		protocol.ContainerSmithingTableResultPreview, protocol.ContainerLoomResultPreview, protocol.ContainerCartographyResultPreview:
 		return true
 	}
 	return false
