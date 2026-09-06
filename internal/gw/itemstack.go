@@ -91,6 +91,9 @@ func newWindowMirror(id int32, layout []winSlot) *invMirror {
 				return int32(size) + int32(slot) - 9, true
 			}
 		default:
+			if container == protocol.ContainerCreatedOutput { // a crafted result leaves through this name
+				container = protocol.ContainerCraftingOutputPreview
+			}
 			for j, ws := range layout {
 				if ws.container == container && ws.idx == uint32(slot) {
 					return int32(j), true
@@ -163,6 +166,12 @@ func bedrockToJavaSlot(container byte, slot byte) (int32, bool) {
 		return javaCursorSlot, true
 	case protocol.ContainerOffhand:
 		return javaOffhand, true
+	case protocol.ContainerCraftingInput: // the 2x2 grid
+		if slot >= playerGridFirst && slot < playerGridFirst+4 {
+			return int32(slot-playerGridFirst) + 1, true
+		}
+	case protocol.ContainerCraftingOutputPreview, protocol.ContainerCreatedOutput:
+		return 0, true
 	case protocol.ContainerArmor:
 		if slot < bedrockArmorSize {
 			return javaArmorFirst + int32(slot), true
@@ -222,9 +231,15 @@ func (m *invMirror) swap(a, b int32) bool {
 // slots it changed. A false return means the whole request is refused: Bedrock
 // transactions are all-or-nothing, and half-applying one would leave the
 // client and the engine holding different inventories.
-func (m *invMirror) applyRequest(req protocol.ItemStackRequest) ([]int32, bool) {
+func (m *invMirror) applyRequest(req protocol.ItemStackRequest, recipes *recipeSet) ([]int32, []craftStep, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if len(req.Actions) > 0 {
+		switch req.Actions[0].(type) {
+		case *protocol.CraftRecipeStackRequestAction, *protocol.AutoCraftRecipeStackRequestAction:
+			return m.applyCraft(req, recipes)
+		}
+	}
 	before := append([]attach.ItemStack(nil), m.slots...)
 	touched := map[int32]bool{}
 
@@ -233,19 +248,19 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest) ([]int32, bool) 
 		case *protocol.TakeStackRequestAction:
 			if !m.applyTransfer(act.Source, act.Destination, int(act.Count), touched) {
 				m.slots = before
-				return nil, false
+				return nil, nil, false
 			}
 		case *protocol.PlaceStackRequestAction:
 			if !m.applyTransfer(act.Source, act.Destination, int(act.Count), touched) {
 				m.slots = before
-				return nil, false
+				return nil, nil, false
 			}
 		case *protocol.SwapStackRequestAction:
 			src, ok1 := m.mapIn(act.Source.Container.ContainerID, act.Source.Slot)
 			dst, ok2 := m.mapIn(act.Destination.Container.ContainerID, act.Destination.Slot)
 			if !ok1 || !ok2 || !m.swap(src, dst) {
 				m.slots = before
-				return nil, false
+				return nil, nil, false
 			}
 			touched[src], touched[dst] = true, true
 		default:
@@ -253,7 +268,7 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest) ([]int32, bool) 
 			// Refusing makes the client put it back, which is honest; guessing
 			// would desynchronise it from the engine.
 			m.slots = before
-			return nil, false
+			return nil, nil, false
 		}
 	}
 
@@ -261,7 +276,7 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest) ([]int32, bool) 
 	for slot := range touched {
 		changed = append(changed, slot)
 	}
-	return changed, true
+	return changed, nil, true
 }
 
 func (m *invMirror) applyTransfer(from, to protocol.StackRequestSlotInfo, count int, touched map[int32]bool) bool {

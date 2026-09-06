@@ -46,8 +46,8 @@ func TestJavaSlotsMapOntoBedrockContainers(t *testing.T) {
 		{"helmet", 5, protocol.ContainerArmor, 0, true},
 		{"boots", 8, protocol.ContainerArmor, 3, true},
 		{"offhand", 45, protocol.ContainerOffhand, 0, true},
-		{"crafting result", 0, 0, 0, false},
-		{"crafting grid", 3, 0, 0, false},
+		{"crafting result", 0, protocol.ContainerCraftingOutputPreview, craftOutputSlot, true},
+		{"crafting grid", 3, protocol.ContainerCraftingInput, playerGridFirst + 2, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -82,9 +82,9 @@ func TestEveryStorageSlotMapsSomewhereUnique(t *testing.T) {
 		}
 		seen[key] = slot
 	}
-	// 36 storage + 4 armour + 1 offhand.
-	if len(seen) != 41 {
-		t.Errorf("%d slots mapped, want 41", len(seen))
+	// 36 storage + 4 armour + 1 offhand + the 2x2 grid and its result.
+	if len(seen) != 46 {
+		t.Errorf("%d slots mapped, want 46", len(seen))
 	}
 }
 
@@ -207,15 +207,18 @@ func TestSendInventorySlotPicksTheRightWindow(t *testing.T) {
 	}
 }
 
-// The crafting grid has no Bedrock inventory home, so it must send nothing at
-// all rather than a packet aimed at slot 0 of the main inventory.
-func TestCraftingSlotsSendNothing(t *testing.T) {
+// The crafting grid lives in Bedrock's UI window (28-31, result 50), never
+// in the main inventory's slot 0.
+func TestCraftingSlotsGoToTheUIWindow(t *testing.T) {
 	java := javaItemID(t, "minecraft:dirt")
-	for _, slot := range []int32{0, 1, 2, 3, 4} {
+	for slot, idx := range map[int32]uint32{0: craftOutputSlot, 1: playerGridFirst, 4: playerGridFirst + 3} {
 		cap := &capture{}
 		sendInventorySlot(cap, slot, attach.ItemStack{ID: java, Count: 1})
-		if len(cap.pkts) != 0 {
-			t.Errorf("java slot %d sent %d packets, want none", slot, len(cap.pkts))
+		if len(cap.pkts) != 1 {
+			t.Fatalf("java slot %d sent %d packets", slot, len(cap.pkts))
+		}
+		if is, ok := cap.pkts[0].(*packet.InventorySlot); !ok || is.WindowID != protocol.WindowIDUI || is.Slot != idx {
+			t.Errorf("java slot %d -> %+v, want UI window slot %d", slot, cap.pkts[0], idx)
 		}
 	}
 }

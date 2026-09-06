@@ -268,7 +268,8 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	// writes what the engine sends, the client reader resolves stack requests
 	// against it — so it carries its own lock rather than living in either.
 	mirror := newInvMirror()
-	win := &winState{} // the open container window, if any
+	win := &winState{}        // the open container window, if any
+	recipes := newRecipeSet() // what the client may craft (CraftingData); written by the world pump, read by requests
 
 	// World → client.
 	go func() {
@@ -340,6 +341,12 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.level", Value: float32(e.Level), Max: 24791}, DefaultMax: 24791},
 						},
 					})
+				}
+			case attach.MsgRecipeBook:
+				var rb attach.RecipeBook
+				if json.Unmarshal(payload, &rb) == nil {
+					recipes.add(rb)
+					send(recipes.packet())
 				}
 			case attach.MsgAdvTree:
 				var t attach.AdvTree
@@ -812,8 +819,18 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					m = wm // an open container: its window, its slot map
 				}
 				for _, req := range p.Requests {
-					changed, ok := m.applyRequest(req)
-					if ok {
+					changed, steps, ok := m.applyRequest(req, recipes)
+					switch {
+					case ok && steps != nil:
+						for _, s := range steps {
+							if s.place != nil {
+								b.Write(attach.MsgCraft, *s.place)
+							}
+							if s.click != nil {
+								b.Write(attach.MsgWindowClick, *s.click)
+							}
+						}
+					case ok:
 						b.Write(attach.MsgWindowClick, m.clickFor(changed))
 					}
 					respondStackRequest(c, req.RequestID, m, changed, ok)

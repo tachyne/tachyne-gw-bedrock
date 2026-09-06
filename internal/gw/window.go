@@ -41,6 +41,16 @@ var brewingLayout = []winSlot{
 	{protocol.ContainerBrewingStandFuel, 4},
 }
 
+// craftingLayout: the result, then the 3x3 grid — both in Bedrock's UI
+// window (the crafting table's own window holds nothing).
+var craftingLayout = func() []winSlot {
+	l := []winSlot{{protocol.ContainerCraftingOutputPreview, craftOutputSlot}}
+	for i := uint32(0); i < 9; i++ {
+		l = append(l, winSlot{protocol.ContainerCraftingInput, tableGridFirst + i})
+	}
+	return l
+}()
+
 var menuWindows = map[int32]menuWindow{
 	0:  {chestLayout(9), protocol.ContainerTypeContainer},   // generic_9x1
 	1:  {chestLayout(18), protocol.ContainerTypeContainer},  // generic_9x2
@@ -51,6 +61,7 @@ var menuWindows = map[int32]menuWindow{
 	6:  {chestLayout(9), protocol.ContainerTypeDispenser},   // generic_3x3 (dispenser/dropper)
 	10: {furnaceLayout, protocol.ContainerTypeBlastFurnace}, // blast_furnace
 	11: {brewingLayout, protocol.ContainerTypeBrewingStand}, // brewing_stand
+	12: {craftingLayout, protocol.ContainerTypeWorkbench},   // crafting
 	14: {furnaceLayout, protocol.ContainerTypeFurnace},      // furnace
 	16: {chestLayout(5), protocol.ContainerTypeHopper},      // hopper
 	20: {chestLayout(27), protocol.ContainerTypeContainer},  // shulker_box
@@ -115,17 +126,25 @@ func (w *winState) usedAt() [3]int32 {
 // sendWindowItems renders a container window: its own slots where Bedrock
 // keeps them, then the player's inventory as the window's lower half.
 func sendWindowItems(w packetWriter, m *invMirror, slots []attach.ItemStack) {
-	content := make([]protocol.ItemInstance, len(m.layout))
-	for j, ws := range m.layout {
-		if j < len(slots) && int(ws.idx) < len(content) {
-			content[ws.idx] = bedrockStack(slots[j])
+	if len(m.layout) > 0 && uiContainer(m.layout[0].container) {
+		for j := range m.layout { // UI slots are set one by one
+			if j < len(slots) {
+				sendWindowSlot(w, m, int32(j), slots[j])
+			}
 		}
+	} else {
+		content := make([]protocol.ItemInstance, len(m.layout))
+		for j, ws := range m.layout {
+			if j < len(slots) && int(ws.idx) < len(content) {
+				content[ws.idx] = bedrockStack(slots[j])
+			}
+		}
+		w.WritePacket(&packet.InventoryContent{
+			WindowID:  uint32(m.window),
+			Content:   content,
+			Container: fullContainer(protocol.ContainerLevelEntity),
+		})
 	}
-	w.WritePacket(&packet.InventoryContent{
-		WindowID:  uint32(m.window),
-		Content:   content,
-		Container: fullContainer(protocol.ContainerLevelEntity),
-	})
 	sendPlayerInventory(w, m.playerView())
 }
 
@@ -133,8 +152,12 @@ func sendWindowItems(w packetWriter, m *invMirror, slots []attach.ItemStack) {
 func sendWindowSlot(w packetWriter, m *invMirror, slot int32, st attach.ItemStack) {
 	if int(slot) < len(m.layout) {
 		ws := m.layout[slot]
+		win := uint32(m.window)
+		if uiContainer(ws.container) {
+			win = protocol.WindowIDUI
+		}
 		w.WritePacket(&packet.InventorySlot{
-			WindowID:  uint32(m.window),
+			WindowID:  win,
 			Slot:      ws.idx,
 			NewItem:   bedrockStack(st),
 			Container: protocol.Option(fullContainer(ws.container)),

@@ -65,7 +65,7 @@ func TestTakeMovesPartOfAStack(t *testing.T) {
 	req := protocol.ItemStackRequest{RequestID: 7, Actions: []protocol.StackRequestAction{
 		takeAction(4, slotInfo(protocol.ContainerInventory, 0), slotInfo(protocol.ContainerCursor, 0)),
 	}}
-	changed, ok := m.applyRequest(req)
+	changed, _, ok := m.applyRequest(req, nil)
 	if !ok {
 		t.Fatal("a plain take was refused")
 	}
@@ -89,7 +89,7 @@ func TestAFailedActionRollsTheWholeRequestBack(t *testing.T) {
 		takeAction(4, slotInfo(protocol.ContainerInventory, 0), slotInfo(protocol.ContainerCursor, 0)),
 		&protocol.DropStackRequestAction{}, // not bridged yet
 	}}
-	changed, ok := m.applyRequest(req)
+	changed, _, ok := m.applyRequest(req, nil)
 	if ok {
 		t.Fatal("a request containing an unsupported action was accepted")
 	}
@@ -110,7 +110,7 @@ func TestTakingMoreThanThereIsIsRefused(t *testing.T) {
 	req := protocol.ItemStackRequest{Actions: []protocol.StackRequestAction{
 		takeAction(64, slotInfo(protocol.ContainerInventory, 0), slotInfo(protocol.ContainerCursor, 0)),
 	}}
-	if _, ok := m.applyRequest(req); ok {
+	if _, _, ok := m.applyRequest(req, nil); ok {
 		t.Fatal("taking 64 from a stack of 3 was accepted")
 	}
 	if got := m.slots[36].Count; got != 3 {
@@ -128,7 +128,7 @@ func TestMergingOntoADifferentItemIsRefused(t *testing.T) {
 			slotInfo(protocol.ContainerInventory, 0),  // java 36
 			slotInfo(protocol.ContainerInventory, 1)), // java 37
 	}}
-	if _, ok := m.applyRequest(req); ok {
+	if _, _, ok := m.applyRequest(req, nil); ok {
 		t.Error("dirt was merged onto stone")
 	}
 }
@@ -145,7 +145,7 @@ func TestSwapExchangesTwoSlots(t *testing.T) {
 			Destination: slotInfo(protocol.ContainerInventory, 1),
 		},
 	}}
-	if _, ok := m.applyRequest(req); !ok {
+	if _, _, ok := m.applyRequest(req, nil); !ok {
 		t.Fatal("a swap was refused")
 	}
 	if m.slots[36].ID != stone || m.slots[37].ID != dirt {
@@ -161,7 +161,7 @@ func TestTheSynthesizedClickCarriesTheResult(t *testing.T) {
 	req := protocol.ItemStackRequest{Actions: []protocol.StackRequestAction{
 		takeAction(4, slotInfo(protocol.ContainerInventory, 0), slotInfo(protocol.ContainerCursor, 0)),
 	}}
-	changed, _ := m.applyRequest(req)
+	changed, _, _ := m.applyRequest(req, nil)
 	click := m.clickFor(changed)
 
 	if click.Cursor.Count != 4 {
@@ -193,9 +193,9 @@ func TestARefusedRequestStillGetsAResponse(t *testing.T) {
 // An accepted request reports the new contents of the slots it touched.
 func TestAnAcceptedRequestReportsTheNewSlots(t *testing.T) {
 	m := mirrorWith(t, 36, 10)
-	changed, ok := m.applyRequest(protocol.ItemStackRequest{Actions: []protocol.StackRequestAction{
+	changed, _, ok := m.applyRequest(protocol.ItemStackRequest{Actions: []protocol.StackRequestAction{
 		takeAction(4, slotInfo(protocol.ContainerInventory, 0), slotInfo(protocol.ContainerCursor, 0)),
-	}})
+	}}, nil)
 	if !ok {
 		t.Fatal("take refused")
 	}

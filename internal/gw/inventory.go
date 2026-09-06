@@ -57,18 +57,28 @@ var bedrockRuntimeID = func() map[string]int32 {
 // treat every stack as the same one.
 var stackIDs atomic.Int32
 
+// bedrockItemIDs is a canonical item's Bedrock network id and metadata,
+// false when it has no Bedrock counterpart.
+func bedrockItemIDs(id int32) (rid, data int32, ok bool) {
+	if id <= 0 || int(id) >= len(javaItemBedrock) {
+		return 0, 0, false
+	}
+	ref := javaItemBedrock[id]
+	if ref.Name == "" {
+		return 0, 0, false
+	}
+	rid, ok = bedrockRuntimeID[ref.Name]
+	return rid, int32(ref.Data), ok
+}
+
 // bedrockStack renders a domain item stack for the Bedrock client. An unknown
 // or unmapped item comes out empty rather than wrong: showing the WRONG item is
 // worse than showing a gap, because a player would act on it.
 func bedrockStack(st attach.ItemStack) protocol.ItemInstance {
-	if st.Count <= 0 || st.ID <= 0 || int(st.ID) >= len(javaItemBedrock) {
+	if st.Count <= 0 {
 		return protocol.ItemInstance{}
 	}
-	ref := javaItemBedrock[st.ID]
-	if ref.Name == "" {
-		return protocol.ItemInstance{} // no Bedrock counterpart
-	}
-	rid, ok := bedrockRuntimeID[ref.Name]
+	rid, data, ok := bedrockItemIDs(st.ID)
 	if !ok {
 		return protocol.ItemInstance{}
 	}
@@ -77,7 +87,7 @@ func bedrockStack(st attach.ItemStack) protocol.ItemInstance {
 		Stack: protocol.ItemStack{
 			ItemType: protocol.ItemType{
 				NetworkID:     rid,
-				MetadataValue: uint32(int32(ref.Data)),
+				MetadataValue: uint32(data),
 			},
 			Count: uint16(st.Count),
 		},
@@ -103,8 +113,30 @@ func javaToBedrockSlot(slot int32) (containerID byte, index uint32, ok bool) {
 		return protocol.ContainerArmor, uint32(slot - javaArmorFirst), true
 	case slot == javaOffhand:
 		return protocol.ContainerOffhand, 0, true
+	case slot == 0: // the 2x2 grid's result: Bedrock's UI window, slot 50
+		return protocol.ContainerCraftingOutputPreview, craftOutputSlot, true
+	case slot >= 1 && slot <= 4: // the 2x2 grid: UI window slots 28-31
+		return protocol.ContainerCraftingInput, playerGridFirst + uint32(slot-1), true
 	}
 	return 0, 0, false
+}
+
+// Bedrock keeps crafting in its UI window (id 124): the player's 2x2 grid
+// at 28-31, a crafting table's 3x3 at 32-40, the result at 50.
+const (
+	playerGridFirst = 28
+	tableGridFirst  = 32
+	craftOutputSlot = 50
+)
+
+// uiContainer reports whether a container lives in the UI window rather
+// than the inventory or a block's own window.
+func uiContainer(id byte) bool {
+	switch id {
+	case protocol.ContainerCraftingInput, protocol.ContainerCraftingOutputPreview, protocol.ContainerCreatedOutput:
+		return true
+	}
+	return false
 }
 
 // sendPlayerInventory renders a whole Java player window as the three Bedrock
@@ -149,6 +181,9 @@ func sendPlayerInventory(w packetWriter, slots []attach.ItemStack) {
 		Content:   []protocol.ItemInstance{offhand},
 		Container: fullContainer(protocol.ContainerOffhand),
 	})
+	for slot := 0; slot <= 4 && slot < len(slots); slot++ { // the 2x2 grid and its result: UI slots, one by one
+		sendInventorySlot(w, int32(slot), slots[slot])
+	}
 }
 
 // sendInventorySlot renders one changed slot of the player's window.
@@ -158,16 +193,20 @@ func sendInventorySlot(w packetWriter, slot int32, st attach.ItemStack) {
 		return
 	}
 	win := protocol.WindowIDInventory
+	container := protocol.Optional[protocol.FullContainerName]{}
 	switch id {
 	case protocol.ContainerArmor:
 		win = protocol.WindowIDArmour
 	case protocol.ContainerOffhand:
 		win = protocol.WindowIDOffHand
+	case protocol.ContainerCraftingInput, protocol.ContainerCraftingOutputPreview:
+		win = protocol.WindowIDUI
+		container = protocol.Option(fullContainer(id))
 	}
 	w.WritePacket(&packet.InventorySlot{
 		WindowID:  uint32(win),
 		Slot:      idx,
-		Container: protocol.Optional[protocol.FullContainerName]{},
+		Container: container,
 		NewItem:   bedrockStack(st),
 	})
 }

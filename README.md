@@ -108,18 +108,20 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   chunks render at the same absolute y inside Bedrock's shorter 0..127
   and 0..255 ranges); advancement toasts ("Advancement Made!" over the
   English title when the player's progress completes one); boats and
-  chest boats in their wood; block-break, bone-meal, crit, explosion,
-  poof and bubble
+  chest boats in their wood; crafting (the world's recipe book becomes
+  CraftingData, the 2x2 grid and the crafting table's 3x3 live in
+  Bedrock's UI window, and a craft request — recipe-book auto-craft
+  included — becomes the world's own result-slot clicks); block-break,
+  bone-meal, crit, explosion, poof and bubble
   particles as level events; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers
   and brewing stands open at the used block with their slots where Bedrock
   keeps them and the burn/cook/brew bars as container data; clicks reach
   the world through the per-window slot map).
 - NOT YET: the Java advancements screen (Bedrock has no tree to show;
-  completions toast and are announced in chat), the remaining menus (crafting
-  table, anvil, enchanting, grindstone, loom, smithing, stonecutter,
-  beacon, trading… are closed straight back so the world does not wait on
-  them), the entity metadata the engine does not yet sync (wolf, cat,
+  completions toast and are announced in chat), the remaining menus (anvil,
+  enchanting, grindstone, loom, smithing, stonecutter, beacon, trading…
+  are closed straight back so the world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
   horse, llama, parrot and rabbit variants and collars), most particles, real Java skin → Bedrock skin conversion, on_ground
   derivation (a Y-stability heuristic rather than real ground detection, so
   Bedrock fall damage is unreliable).
