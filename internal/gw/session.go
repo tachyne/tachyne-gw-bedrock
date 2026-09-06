@@ -2,10 +2,12 @@ package gw
 
 import (
 	"bytes"
+
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	tproto "github.com/tachyne/tachyne-common/protocol"
 	"log"
 	"math"
 	"net"
@@ -70,18 +72,18 @@ func itemMetaStack(meta []byte) (attach.ItemStack, bool) {
 		if err != nil || idx == 0xff {
 			return attach.ItemStack{}, false
 		}
-		typ, err := protocol.ReadVarInt(r)
+		typ, err := tproto.ReadVarInt(r)
 		if err != nil {
 			return attach.ItemStack{}, false
 		}
 		if idx != 8 || typ != 7 { // 7 = the Slot serializer (1.21.5)
 			return attach.ItemStack{}, false // only the item entry is understood
 		}
-		count, err := protocol.ReadVarInt(r)
+		count, err := tproto.ReadVarInt(r)
 		if err != nil || count <= 0 {
 			return attach.ItemStack{}, false
 		}
-		id, err := protocol.ReadVarInt(r)
+		id, err := tproto.ReadVarInt(r)
 		if err != nil {
 			return attach.ItemStack{}, false
 		}
@@ -105,9 +107,9 @@ type entState struct {
 	player   bool
 	pos      mgl32.Vec3 // feet
 	velocity mgl32.Vec3 // a dropped item's launch (AddItemActor carries it)
-	yaw     float32
-	pitch   float32
-	headYaw float32
+	yaw      float32
+	pitch    float32
+	headYaw  float32
 }
 
 // session bridges one authorized Bedrock client to the world over the attach
@@ -267,10 +269,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 
 	// World → client.
 	go func() {
-		ents := map[int32]*entState{}  // remote entities the client renders
-		skipped := map[int32]bool{}    // entities with no Bedrock form
+		ents := map[int32]*entState{}         // remote entities the client renders
+		skipped := map[int32]bool{}           // entities with no Bedrock form
 		pendingItems := map[int32]*entState{} // dropped items waiting for their stack (metadata) before AddItemActor
-		names := map[[16]byte]string{} // uuid → username (PlayerInfo)
+		names := map[[16]byte]string{}        // uuid → username (PlayerInfo)
 		for {
 			typ, payload, err := attach.ReadFrame(b.Get())
 			if err != nil {
