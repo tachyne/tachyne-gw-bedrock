@@ -133,7 +133,11 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   explosion, poof and bubble particles as level events and sixty-odd
   more (flames, smoke, splashes, hearts, notes, portal, enchant
   glyphs…) as the named Bedrock particles Geyser's table maps them to;
-  Bedrock players' own skins in each other's player lists; container windows (chests, barrels, shulker
+  Bedrock players' own skins in each other's player lists; riding (the
+  world's passenger lists become actor links so the client sits the
+  player on the boat or cart, the ride carries the chunk window, and the
+  full key state — forward/back/left/right, jump, sneak, sprint — steers
+  server-driven vehicles); container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers
   and brewing stands open at the used block with their slots where Bedrock
   keeps them and the burn/cook/brew bars as container data; clicks reach

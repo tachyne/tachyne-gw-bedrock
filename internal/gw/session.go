@@ -240,6 +240,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	ccx, ccz := int32(math.Floor(pos.X))>>4, int32(math.Floor(pos.Z))>>4
 	var viewDist atomic.Int32
 	viewDist.Store(viewRadius)
+	var riding atomic.Int32 // the vehicle this player rides (0 = none): its moves carry the chunk window, the player's own are camera
 
 	// publish declares the render area: the Bedrock client only MESHES chunks
 	// inside the last NetworkChunkPublisherUpdate area — chunks outside it are
@@ -282,6 +283,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		skipped := map[int32]bool{}           // entities with no Bedrock form
 		pendingItems := map[int32]*entState{} // dropped items waiting for their stack (metadata) before AddItemActor
 		names := map[[16]byte]string{}        // uuid → username (PlayerInfo)
+		links := map[int32]int32{}            // rider → vehicle (actor links)
 		adv := newAdvBook()                   // advancement progress, for the toast
 		for {
 			typ, payload, err := attach.ReadFrame(b.Get())
@@ -554,6 +556,14 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case attach.MsgEntityMove:
 				var e attach.EntityMove
 				if json.Unmarshal(payload, &e) == nil {
+					if riding.Load() == e.EID { // our ride: the window follows it
+						pos.X, pos.Y, pos.Z = e.X, e.Y, e.Z
+						if ncx, ncz := int32(math.Floor(e.X))>>4, int32(math.Floor(e.Z))>>4; ncx != ccx || ncz != ccz {
+							ccx, ccz = ncx, ncz
+							publish(e.X, e.Y, e.Z, viewDist.Load())
+							b.Write(attach.MsgWant, attach.Want{CX: ccx, CZ: ccz, Radius: viewDist.Load(), Dim: curDim.Load()})
+						}
+					}
 					st := ents[e.EID]
 					if st == nil {
 						continue
@@ -561,6 +571,36 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					st.pos = mgl32.Vec3{float32(e.X), float32(e.Y), float32(e.Z)}
 					st.yaw, st.pitch = e.Yaw, e.Pitch
 					moveEntityVia(send, c, e.EID, st, e.OnGround)
+				}
+			case attach.MsgPassengers:
+				// Who rides what: Bedrock seats riders with actor links (the
+				// first rider drives), and unlinks those who got off.
+				var e attach.Passengers
+				if json.Unmarshal(payload, &e) == nil {
+					still := map[int32]bool{}
+					for i, r := range e.Riders {
+						still[r] = true
+						kind := byte(protocol.EntityLinkPassenger)
+						if i == 0 {
+							kind = protocol.EntityLinkRider
+						}
+						send(&packet.SetActorLink{EntityLink: protocol.EntityLink{
+							RiddenEntityUniqueID: int64(e.Vehicle), RiderEntityUniqueID: int64(r), Type: kind, Immediate: true}})
+						links[r] = e.Vehicle
+						if r == welcome.EID {
+							riding.Store(e.Vehicle)
+						}
+					}
+					for r, v := range links {
+						if v == e.Vehicle && !still[r] {
+							send(&packet.SetActorLink{EntityLink: protocol.EntityLink{
+								RiddenEntityUniqueID: int64(v), RiderEntityUniqueID: int64(r), Type: protocol.EntityLinkRemove, Immediate: true}})
+							delete(links, r)
+							if r == welcome.EID {
+								riding.Store(0)
+							}
+						}
+					}
 				}
 			case attach.MsgEntityMeta:
 				var e attach.EntityMeta
@@ -770,6 +810,8 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		lastX, lastY, lastZ := pos.X, pos.Y, pos.Z
 		lastYaw, lastPitch := pos.Yaw, pos.Pitch
 		lastOnGround := true
+		sneaking := false
+		var lastInput attach.Input
 		for {
 			pk, err := c.ReadPacket()
 			if err != nil {
@@ -806,11 +848,26 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						})
 					}
 				}
+				// The key state, whenever it changes: the world steers a ridden
+				// vehicle from it (and sneak dismounts).
 				if p.InputData.Load(packet.InputFlagStartSneaking) {
-					b.Write(attach.MsgInput, attach.Input{Sneak: true})
+					sneaking = true
 				}
 				if p.InputData.Load(packet.InputFlagStopSneaking) {
-					b.Write(attach.MsgInput, attach.Input{Sneak: false})
+					sneaking = false
+				}
+				in := attach.Input{
+					Forward: p.InputData.Load(packet.InputFlagUp), Backward: p.InputData.Load(packet.InputFlagDown),
+					Left: p.InputData.Load(packet.InputFlagLeft), Right: p.InputData.Load(packet.InputFlagRight),
+					Jump: p.InputData.Load(packet.InputFlagJumping), Sneak: sneaking,
+					Sprint: p.InputData.Load(packet.InputFlagSprinting),
+				}
+				if in != lastInput {
+					lastInput = in
+					b.Write(attach.MsgInput, in)
+				}
+				if riding.Load() != 0 {
+					continue // a rider's own moves are camera only; the vehicle carries the player
 				}
 				// Bedrock streams input every tick; forward only real movement.
 				x := float64(p.Position.X())
