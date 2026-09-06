@@ -12,7 +12,7 @@ import (
 
 // particleEvents maps canonical particle ids to Bedrock level events.
 var particleEvents = map[int32]int32{
-	5:  packet.LevelEventParticlesCritical, // crit
+	5:  packet.LevelEventParticlesCritical,  // crit
 	21: packet.LevelEventParticlesExplosion, // explosion_emitter
 	56: packet.LevelEventParticleDeathSmoke, // poof
 	3:  packet.LevelEventParticlesBubble,    // bubble
