@@ -80,25 +80,32 @@ var enchantLayout = []winSlot{
 	{protocol.ContainerEnchantingMaterial, 15},
 }
 
+// stonecutterLayout: the input and the result, in the UI window.
+var stonecutterLayout = []winSlot{
+	{protocol.ContainerStonecutterInput, 3},
+	{protocol.ContainerStonecutterResultPreview, craftOutputSlot},
+}
+
 var menuWindows = map[int32]menuWindow{
-	0:  {chestLayout(9), protocol.ContainerTypeContainer},    // generic_9x1
-	1:  {chestLayout(18), protocol.ContainerTypeContainer},   // generic_9x2
-	2:  {chestLayout(27), protocol.ContainerTypeContainer},   // generic_9x3
-	3:  {chestLayout(36), protocol.ContainerTypeContainer},   // generic_9x4
-	4:  {chestLayout(45), protocol.ContainerTypeContainer},   // generic_9x5
-	5:  {chestLayout(54), protocol.ContainerTypeContainer},   // generic_9x6
-	6:  {chestLayout(9), protocol.ContainerTypeDispenser},    // generic_3x3 (dispenser/dropper)
-	8:  {anvilLayout, protocol.ContainerTypeAnvil},           // anvil
-	10: {furnaceLayout, protocol.ContainerTypeBlastFurnace},  // blast_furnace
-	11: {brewingLayout, protocol.ContainerTypeBrewingStand},  // brewing_stand
-	12: {craftingLayout, protocol.ContainerTypeWorkbench},    // crafting
-	13: {enchantLayout, protocol.ContainerTypeEnchantment},   // enchantment
-	14: {furnaceLayout, protocol.ContainerTypeFurnace},       // furnace
-	15: {grindstoneLayout, protocol.ContainerTypeGrindstone}, // grindstone
-	16: {chestLayout(5), protocol.ContainerTypeHopper},       // hopper
-	19: {tradeLayout, protocol.ContainerTypeTrade},           // merchant
-	20: {chestLayout(27), protocol.ContainerTypeContainer},   // shulker_box
-	22: {furnaceLayout, protocol.ContainerTypeSmoker},        // smoker
+	0:  {chestLayout(9), protocol.ContainerTypeContainer},      // generic_9x1
+	1:  {chestLayout(18), protocol.ContainerTypeContainer},     // generic_9x2
+	2:  {chestLayout(27), protocol.ContainerTypeContainer},     // generic_9x3
+	3:  {chestLayout(36), protocol.ContainerTypeContainer},     // generic_9x4
+	4:  {chestLayout(45), protocol.ContainerTypeContainer},     // generic_9x5
+	5:  {chestLayout(54), protocol.ContainerTypeContainer},     // generic_9x6
+	6:  {chestLayout(9), protocol.ContainerTypeDispenser},      // generic_3x3 (dispenser/dropper)
+	8:  {anvilLayout, protocol.ContainerTypeAnvil},             // anvil
+	10: {furnaceLayout, protocol.ContainerTypeBlastFurnace},    // blast_furnace
+	11: {brewingLayout, protocol.ContainerTypeBrewingStand},    // brewing_stand
+	12: {craftingLayout, protocol.ContainerTypeWorkbench},      // crafting
+	13: {enchantLayout, protocol.ContainerTypeEnchantment},     // enchantment
+	14: {furnaceLayout, protocol.ContainerTypeFurnace},         // furnace
+	15: {grindstoneLayout, protocol.ContainerTypeGrindstone},   // grindstone
+	16: {chestLayout(5), protocol.ContainerTypeHopper},         // hopper
+	19: {tradeLayout, protocol.ContainerTypeTrade},             // merchant
+	20: {chestLayout(27), protocol.ContainerTypeContainer},     // shulker_box
+	24: {stonecutterLayout, protocol.ContainerTypeStonecutter}, // stonecutter
+	22: {furnaceLayout, protocol.ContainerTypeSmoker},          // smoker
 }
 
 // winState is the container window open for this client, shared between
@@ -119,6 +126,7 @@ func (w *winState) open(id int32, layout []winSlot, ctype byte, title string) *i
 	defer w.mu.Unlock()
 	w.mirror = newWindowMirror(id, layout)
 	w.mirror.table = ctype == protocol.ContainerTypeEnchantment
+	w.mirror.cutter = ctype == protocol.ContainerTypeStonecutter
 	for i := range w.mirror.ench {
 		w.mirror.ench[i] = enchantRow{bedrock: -1, level: -1}
 	}

@@ -117,7 +117,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   become Bedrock's trade screen addressed to the villager just used, and
   choosing an offer selects it in the world before the result is taken);
   the enchanting table (the world's three rows become Bedrock's enchant
-  options, and picking one presses the world's button); block-break,
+  options, and picking one presses the world's button); the stonecutter
+  (its recipes ride in the crafting data, and a cut picks the world's row
+  before the take); block-break,
   bone-meal, crit, explosion, poof and bubble
   particles as level events; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers
@@ -126,8 +128,8 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   the world through the per-window slot map).
 - NOT YET: the Java advancements screen (Bedrock has no tree to show;
   completions toast and are announced in chat), the remaining menus
-  (loom, smithing, stonecutter, cartography, beacon, lectern, crafter…
-  are closed straight back so the world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
+  (loom, smithing, cartography, beacon, lectern, crafter… are closed
+  straight back so the world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
   horse, llama, parrot and rabbit variants and collars), most particles, real Java skin → Bedrock skin conversion, on_ground
   derivation (a Y-stability heuristic rather than real ground detection, so
   Bedrock fall damage is unreliable).

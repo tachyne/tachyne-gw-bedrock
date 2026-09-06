@@ -52,6 +52,7 @@ type invMirror struct {
 	trades []attach.ItemStack                       // a trade screen: what each offer sells, by index
 	ench   [3]enchantRow                            // an enchanting table's rows
 	table  bool                                     // …which this window is
+	cutter bool                                     // a stonecutter
 }
 
 // setTrades records a trade screen's offers (what each sells).

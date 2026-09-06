@@ -6,6 +6,7 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	attach "github.com/tachyne/tachyne-common/attach"
+	tproto "github.com/tachyne/tachyne-common/protocol"
 )
 
 // mappedItem is some canonical item with a Bedrock counterpart.
@@ -32,8 +33,8 @@ func TestCraftingBridge(t *testing.T) {
 		Shaped:    []attach.ShapedRecipe{{ID: 0, W: 1, H: 2, Cells: []int32{plank, plank}, Result: stick, Count: 4}},
 		Shapeless: []attach.ShapelessRecipe{{ID: 1, Ingredients: []int32{plank}, Result: stick, Count: 1}}})
 	pk := rs.packet()
-	if !pk.ClearRecipes || len(pk.Recipes) != 2 {
-		t.Fatalf("crafting data %+v", pk)
+	if !pk.ClearRecipes || len(pk.Recipes) != 2+len(tproto.StonecuttingRecipes) { // the book, then the stonecutter's
+		t.Fatalf("crafting data: %d recipes", len(pk.Recipes))
 	}
 	if sr, ok := pk.Recipes[0].(*protocol.ShapedRecipe); !ok || sr.RecipeNetworkID != 1 || len(sr.Input) != 2 || sr.Output[0].Count != 4 {
 		t.Errorf("shaped %+v", pk.Recipes[0])
@@ -170,5 +171,60 @@ func TestAnvilAndGrindstone(t *testing.T) {
 	}
 	if mw := menuWindows[8]; mw.ctype != protocol.ContainerTypeAnvil || len(mw.layout) != 3 {
 		t.Error("anvil menu")
+	}
+}
+
+// The stonecutter: its recipes ride in the crafting data under the
+// stonecutter block, and cutting picks the world's row before the take.
+func TestStonecutter(t *testing.T) {
+	if len(tproto.StonecuttingRecipes) == 0 {
+		t.Skip("no stonecutting table")
+	}
+	rs := newRecipeSet()
+	pk := rs.packet()
+	var cut *protocol.ShapelessRecipe
+	for _, r := range pk.Recipes {
+		if sr, ok := r.(*protocol.ShapelessRecipe); ok && sr.Block == "stonecutter" {
+			cut = sr
+			break
+		}
+	}
+	if cut == nil || cut.RecipeNetworkID < stonecutBase || len(cut.Input) != 1 {
+		t.Fatalf("stonecutter recipes missing: %+v", cut)
+	}
+	e, ok := stonecutRecipes[cut.RecipeNetworkID]
+	if !ok {
+		t.Fatal("recipe not indexed")
+	}
+	// The second recipe for the same input is button 1.
+	first := tproto.StonecuttingRecipes[0]
+	second := -1
+	for i := 1; i < len(tproto.StonecuttingRecipes); i++ {
+		if tproto.StonecuttingRecipes[i].In == first.In {
+			second = i
+			break
+		}
+	}
+	if second > 0 && stonecutRecipes[uint32(stonecutBase+second)].button != 1 {
+		t.Errorf("row order: %+v", stonecutRecipes[uint32(stonecutBase+second)])
+	}
+
+	w := &winState{}
+	m := w.open(6, stonecutterLayout, protocol.ContainerTypeStonecutter, "Stonecutter")
+	if !m.cutter || m.result != 1 {
+		t.Fatalf("stonecutter window %v %d", m.cutter, m.result)
+	}
+	m.set(0, attach.ItemStack{ID: first.In, Count: 2})
+	req := protocol.ItemStackRequest{RequestID: 2, Actions: []protocol.StackRequestAction{
+		&protocol.CraftRecipeStackRequestAction{RecipeNetworkID: cut.RecipeNetworkID, NumberOfCrafts: 1},
+		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerStonecutterInput, 3)}},
+		takeAction(byte(e.result.Count), slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerCursor, 0)),
+	}}
+	_, steps, ok := m.applyRequest(req, rs)
+	if !ok || len(steps) != 2 || steps[0].ench == nil || steps[0].ench.Button != e.button || steps[1].click == nil || steps[1].click.Slot != 1 {
+		t.Fatalf("cut: ok=%v steps=%+v", ok, steps)
+	}
+	if m.slots[0].Count != 1 || m.slots[m.cursor].ID != e.result.ID {
+		t.Errorf("mirror %+v cursor %+v", m.slots[0], m.slots[m.cursor])
 	}
 }

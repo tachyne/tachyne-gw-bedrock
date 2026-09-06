@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	tproto "github.com/tachyne/tachyne-common/protocol"
+
 	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
@@ -27,6 +29,29 @@ type recipeSet struct {
 	shapeless []attach.ShapelessRecipe
 	outputs   map[uint32]craftOutput // by Bedrock network id
 }
+
+// stonecutBase keeps the stonecutter's network ids clear of the book's.
+const stonecutBase = 1 << 20
+
+// stonecutEntry is one stonecutting recipe as the world's menu orders it:
+// the button is its row among the recipes for the same input.
+type stonecutEntry struct {
+	button int32
+	result attach.ItemStack
+}
+
+// stonecutRecipes is the shared stonecutting table by network id, the
+// button being each recipe's row within its input's list (the order the
+// world's stonecutter menu shows them).
+var stonecutRecipes = func() map[uint32]stonecutEntry {
+	m := map[uint32]stonecutEntry{}
+	rows := map[int32]int32{}
+	for i, r := range tproto.StonecuttingRecipes {
+		m[uint32(stonecutBase+i)] = stonecutEntry{button: rows[r.In], result: attach.ItemStack{ID: r.Out, Count: int32(r.Count)}}
+		rows[r.In]++
+	}
+	return m
+}()
 
 type craftOutput struct {
 	bookID int32 // the world's display id (the auto-craft frame names it)
@@ -109,6 +134,20 @@ func (r *recipeSet) packet() *packet.CraftingData {
 			RecipeNetworkID:   networkID(s.ID),
 		})
 	}
+	for i, r := range tproto.StonecuttingRecipes { // the stonecutter's, as one-input shapeless recipes
+		out, ok := bedrockStackOf(attach.ItemStack{ID: r.Out, Count: int32(r.Count)})
+		d, ok2 := descriptor(r.In)
+		if !ok || !ok2 {
+			continue
+		}
+		pk.Recipes = append(pk.Recipes, &protocol.ShapelessRecipe{
+			RecipeID: fmt.Sprintf("tachyne:stonecutter/%d", i),
+			Input:    []protocol.ItemDescriptorCount{d}, Output: []protocol.ItemStack{out}, UUID: recipeUUID(int32(stonecutBase + i)),
+			Block:             "stonecutter",
+			UnlockRequirement: protocol.RecipeUnlockRequirement{Context: protocol.RecipeUnlockContextAlwaysUnlocked},
+			RecipeNetworkID:   uint32(stonecutBase + i),
+		})
+	}
 	return pk
 }
 
@@ -159,7 +198,7 @@ type craftStep struct {
 	click *attach.WindowClick
 	name  *string          // the anvil's rename box
 	sel   *attach.SelTrade // the trade screen's chosen offer
-	ench  *attach.Enchant  // the enchanting table's chosen row
+	ench  *attach.Enchant  // the enchanting table's chosen row, or the stonecutter's
 }
 
 // applyCraft resolves a craft request against the mirror (held locked):
@@ -207,6 +246,15 @@ func (m *invMirror) applyCraft(req protocol.ItemStackRequest, recipes *recipeSet
 				}
 				m.slots = before
 				return nil, []craftStep{{ench: &attach.Enchant{Button: button}}}, true
+			}
+			if m.cutter { // the stonecutter: the recipe picks the row, the row's result is taken
+				e, ok := stonecutRecipes[act.RecipeNetworkID]
+				if named || !ok {
+					return fail()
+				}
+				out, named = craftOutput{result: e.result}, true
+				steps = append(steps, craftStep{ench: &attach.Enchant{Button: e.button}})
+				continue
 			}
 			if m.trades != nil { // a trade screen: the offer by index
 				idx := int(act.RecipeNetworkID) - 1
