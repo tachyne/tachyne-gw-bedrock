@@ -119,3 +119,56 @@ func TestCraftingBridge(t *testing.T) {
 		t.Error("crafting menu")
 	}
 }
+
+// The anvil and grindstone craft whatever the world previewed in slot 2:
+// a rename rides ahead of the clicks, the inputs are consumed, the
+// result taken through the created-output name.
+func TestAnvilAndGrindstone(t *testing.T) {
+	sword, iron := mappedItem(t, 0), mappedItem(t, 1)
+	one := func(id int32) attach.ItemStack { return attach.ItemStack{ID: id, Count: 1} }
+	m := newWindowMirror(9, anvilLayout)
+	if m.result != 2 {
+		t.Fatalf("anvil result slot %d", m.result)
+	}
+	m.set(0, one(sword))
+	m.set(1, attach.ItemStack{ID: iron, Count: 3})
+	m.set(2, one(sword))
+	req := protocol.ItemStackRequest{RequestID: 3, FilterStrings: []string{"Excalibur"}, Actions: []protocol.StackRequestAction{
+		&protocol.CraftRecipeOptionalStackRequestAction{FilterStringIndex: 0},
+		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.ItemStack{{Count: 1}}, TimesCrafted: 1},
+		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerAnvilInput, 1)}},
+		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerAnvilMaterial, 2)}},
+		takeAction(1, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerCursor, 0)),
+	}}
+	changed, steps, ok := m.applyRequest(req, nil)
+	if !ok || len(steps) != 2 || steps[0].name == nil || *steps[0].name != "Excalibur" || steps[1].click == nil || steps[1].click.Slot != 2 {
+		t.Fatalf("anvil: ok=%v steps=%+v", ok, steps)
+	}
+	if m.slots[0].Count != 0 || m.slots[1].Count != 2 || m.slots[m.cursor].ID != sword || len(changed) != 3 {
+		t.Errorf("anvil mirror %+v %+v cursor %+v", m.slots[0], m.slots[1], m.slots[m.cursor])
+	}
+	if c, idx, ok := m.mapOut(1); !ok || c != protocol.ContainerAnvilMaterial || idx != 2 {
+		t.Errorf("anvil material → (%d,%d) %v", c, idx, ok)
+	}
+
+	g := newWindowMirror(10, grindstoneLayout)
+	g.set(0, one(sword))
+	g.set(2, one(sword))
+	greq := protocol.ItemStackRequest{RequestID: 4, Actions: []protocol.StackRequestAction{
+		&protocol.CraftGrindstoneRecipeStackRequestAction{},
+		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerGrindstoneInput, 16)}},
+		placeAction(1, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerHotBar, 0)),
+	}}
+	if _, steps, ok := g.applyRequest(greq, nil); !ok || len(steps) != 2 || steps[0].click.Slot != 2 || steps[1].click.Slot != 3+27 {
+		t.Fatalf("grindstone: ok=%v steps=%+v", ok, steps)
+	}
+	// No preview yet: nothing to take.
+	e := newWindowMirror(11, grindstoneLayout)
+	e.set(0, one(sword))
+	if _, _, ok := e.applyRequest(greq, nil); ok {
+		t.Error("took a result the world never previewed")
+	}
+	if mw := menuWindows[8]; mw.ctype != protocol.ContainerTypeAnvil || len(mw.layout) != 3 {
+		t.Error("anvil menu")
+	}
+}

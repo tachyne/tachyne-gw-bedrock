@@ -111,7 +111,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   chest boats in their wood; crafting (the world's recipe book becomes
   CraftingData, the 2x2 grid and the crafting table's 3x3 live in
   Bedrock's UI window, and a craft request — recipe-book auto-craft
-  included — becomes the world's own result-slot clicks); block-break,
+  included — becomes the world's own result-slot clicks); the anvil
+  (renames ride ahead of the take) and the grindstone, whose results are
+  whatever the world previewed; block-break,
   bone-meal, crit, explosion, poof and bubble
   particles as level events; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers
@@ -119,8 +121,8 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   keeps them and the burn/cook/brew bars as container data; clicks reach
   the world through the per-window slot map).
 - NOT YET: the Java advancements screen (Bedrock has no tree to show;
-  completions toast and are announced in chat), the remaining menus (anvil,
-  enchanting, grindstone, loom, smithing, stonecutter, beacon, trading…
+  completions toast and are announced in chat), the remaining menus
+  (enchanting, loom, smithing, stonecutter, cartography, beacon, trading…
   are closed straight back so the world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
   horse, llama, parrot and rabbit variants and collars), most particles, real Java skin → Bedrock skin conversion, on_ground
   derivation (a Y-stability heuristic rather than real ground detection, so

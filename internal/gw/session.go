@@ -823,6 +823,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					switch {
 					case ok && steps != nil:
 						for _, s := range steps {
+							if s.name != nil {
+								b.Write(attach.MsgNameItem, attach.NameItem{Name: *s.name})
+							}
 							if s.place != nil {
 								b.Write(attach.MsgCraft, *s.place)
 							}

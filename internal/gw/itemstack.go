@@ -48,12 +48,13 @@ type invMirror struct {
 	mapIn  func(container, slot byte) (int32, bool) // Bedrock slot → Java slot
 	mapOut func(slot int32) (byte, uint32, bool)    // Java slot → Bedrock container + index
 	layout []winSlot                                // container windows: where Bedrock keeps each container slot
+	result int32                                    // the Java slot a craft's result comes from (-1 = none)
 }
 
 // newInvMirror is the player's own inventory window.
 func newInvMirror() *invMirror {
 	return &invMirror{slots: make([]attach.ItemStack, javaWindowSize+1), cursor: javaCursorSlot,
-		mapIn: bedrockToJavaSlot, mapOut: javaToBedrockSlot}
+		mapIn: bedrockToJavaSlot, mapOut: javaToBedrockSlot, result: 0}
 }
 
 // winSlot is where Bedrock keeps one of a window's container slots: the
@@ -78,7 +79,12 @@ func chestLayout(n int) []winSlot {
 // container first, then the player's main inventory (27) and hotbar (9).
 func newWindowMirror(id int32, layout []winSlot) *invMirror {
 	size := len(layout)
-	m := &invMirror{slots: make([]attach.ItemStack, size+36+1), cursor: int32(size + 36), window: id, layout: layout}
+	m := &invMirror{slots: make([]attach.ItemStack, size+36+1), cursor: int32(size + 36), window: id, layout: layout, result: -1}
+	for j, ws := range layout {
+		if resultContainer(ws.container) {
+			m.result = int32(j)
+		}
+	}
 	m.mapIn = func(container, slot byte) (int32, bool) {
 		switch container {
 		case protocol.ContainerCursor:
@@ -92,7 +98,10 @@ func newWindowMirror(id int32, layout []winSlot) *invMirror {
 			}
 		default:
 			if container == protocol.ContainerCreatedOutput { // a crafted result leaves through this name
-				container = protocol.ContainerCraftingOutputPreview
+				if m.result >= 0 {
+					return m.result, true
+				}
+				return 0, false
 			}
 			for j, ws := range layout {
 				if ws.container == container && ws.idx == uint32(slot) {
@@ -236,7 +245,8 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest, recipes *recipeS
 	defer m.mu.Unlock()
 	if len(req.Actions) > 0 {
 		switch req.Actions[0].(type) {
-		case *protocol.CraftRecipeStackRequestAction, *protocol.AutoCraftRecipeStackRequestAction:
+		case *protocol.CraftRecipeStackRequestAction, *protocol.AutoCraftRecipeStackRequestAction,
+			*protocol.CraftRecipeOptionalStackRequestAction, *protocol.CraftGrindstoneRecipeStackRequestAction:
 			return m.applyCraft(req, recipes)
 		}
 	}

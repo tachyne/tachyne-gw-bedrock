@@ -133,7 +133,19 @@ const (
 // than the inventory or a block's own window.
 func uiContainer(id byte) bool {
 	switch id {
-	case protocol.ContainerCraftingInput, protocol.ContainerCraftingOutputPreview, protocol.ContainerCreatedOutput:
+	case protocol.ContainerCraftingInput, protocol.ContainerCraftingOutputPreview, protocol.ContainerCreatedOutput,
+		protocol.ContainerAnvilInput, protocol.ContainerAnvilMaterial, protocol.ContainerAnvilResultPreview,
+		protocol.ContainerGrindstoneInput, protocol.ContainerGrindstoneAdditional, protocol.ContainerGrindstoneResultPreview:
+		return true
+	}
+	return false
+}
+
+// resultContainer reports whether a container is a menu's result preview
+// (what a craft takes through the created-output name).
+func resultContainer(id byte) bool {
+	switch id {
+	case protocol.ContainerCraftingOutputPreview, protocol.ContainerAnvilResultPreview, protocol.ContainerGrindstoneResultPreview:
 		return true
 	}
 	return false

@@ -157,6 +157,7 @@ func recipeUUID(id int32) uuid.UUID {
 type craftStep struct {
 	place *attach.Craft
 	click *attach.WindowClick
+	name  *string // the anvil's rename box
 }
 
 // applyCraft resolves a craft request against the mirror (held locked):
@@ -173,17 +174,38 @@ func (m *invMirror) applyCraft(req protocol.ItemStackRequest, recipes *recipeSet
 		m.slots = before
 		return nil, nil, false
 	}
+	// A menu with its own result slot (anvil, grindstone) crafts whatever
+	// the world previewed there; the recipe named means nothing to it.
+	preview := func() bool {
+		if named || m.result <= 0 || m.slots[m.result].Count <= 0 {
+			return false
+		}
+		out, named = craftOutput{result: m.slots[m.result]}, true
+		return true
+	}
 	for _, a := range req.Actions {
 		switch act := a.(type) {
+		case *protocol.CraftRecipeOptionalStackRequestAction: // the anvil: maybe a rename
+			if m.result != 2 || !preview() {
+				return fail()
+			}
+			if i := int(act.FilterStringIndex); i >= 0 && i < len(req.FilterStrings) {
+				name := req.FilterStrings[i]
+				steps = append(steps, craftStep{name: &name})
+			}
+		case *protocol.CraftGrindstoneRecipeStackRequestAction:
+			if m.result != 2 || !preview() {
+				return fail()
+			}
 		case *protocol.CraftRecipeStackRequestAction:
 			o, ok := recipes.output(act.RecipeNetworkID)
-			if named || !ok {
+			if named || !ok || m.result != 0 {
 				return fail()
 			}
 			out, named = o, true
 		case *protocol.AutoCraftRecipeStackRequestAction:
 			o, ok := recipes.output(act.RecipeNetworkID)
-			if named || !ok {
+			if named || !ok || m.result != 0 {
 				return fail()
 			}
 			out, named, auto = o, true, true
@@ -191,7 +213,7 @@ func (m *invMirror) applyCraft(req protocol.ItemStackRequest, recipes *recipeSet
 			// The client's own idea of the result; the recipe already says.
 		case *protocol.ConsumeStackRequestAction:
 			slot, ok := m.mapIn(act.Source.Container.ContainerID, act.Source.Slot)
-			if !named || !ok || slot == m.cursor || slot == 0 {
+			if !named || !ok || slot == m.cursor || slot == m.result {
 				return fail()
 			}
 			st := m.slots[slot]
@@ -235,7 +257,7 @@ func (m *invMirror) takeResult(src, dst protocol.StackRequestSlotInfo, count int
 		return false
 	}
 	dest, ok := m.mapIn(dst.Container.ContainerID, dst.Slot)
-	if !ok || dest == 0 || count <= 0 || count%out.result.Count != 0 {
+	if !ok || dest == m.result || count <= 0 || count%out.result.Count != 0 {
 		return false
 	}
 	times := count / out.result.Count
@@ -244,7 +266,7 @@ func (m *invMirror) takeResult(src, dst protocol.StackRequestSlotInfo, count int
 			*steps = append(*steps, craftStep{place: &attach.Craft{Window: m.window, Recipe: out.bookID}})
 		}
 		// The result slot: the world moves the result onto the cursor.
-		*steps = append(*steps, craftStep{click: &attach.WindowClick{ID: m.window, Slot: 0, Mode: 0, Cursor: out.result}})
+		*steps = append(*steps, craftStep{click: &attach.WindowClick{ID: m.window, Slot: m.result, Mode: 0, Cursor: out.result}})
 		if dest == m.cursor {
 			c := m.slots[m.cursor]
 			if c.Count > 0 && c.ID != out.result.ID {
