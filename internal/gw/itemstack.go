@@ -266,6 +266,8 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest, recipes *recipeS
 			*protocol.CraftRecipeOptionalStackRequestAction, *protocol.CraftGrindstoneRecipeStackRequestAction,
 			*protocol.CraftLoomRecipeStackRequestAction:
 			return m.applyCraft(req, recipes)
+		case *protocol.CraftCreativeStackRequestAction:
+			return m.applyCreative(req)
 		case *protocol.BeaconPaymentStackRequestAction: // the world consumes the payment itself
 			if !m.beacon {
 				return nil, nil, false

@@ -123,7 +123,10 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   recipes, armor trims through Bedrock's trim data and the tag-written
   trim recipe), the loom (Bedrock's pattern pick becomes the world's
   row) and the beacon (the chosen effects live on its block entity, and
-  the payment becomes the world's SetBeacon); block-break,
+  the payment becomes the world's SetBeacon); the creative inventory
+  (every mapped item listed, blocks under construction; taking, dropping
+  and destroying become the world's creative slot sets, or declared
+  clicks inside a container); block-break,
   bone-meal, crit, explosion, poof and bubble
   particles as level events; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers

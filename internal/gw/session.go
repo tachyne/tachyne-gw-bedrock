@@ -165,7 +165,8 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 	abilities := uint32(protocol.AbilityBuild | protocol.AbilityMine |
 		protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers |
 		protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs)
-	if welcome.Gamemode == 1 { // creative
+	c.WritePacket(creativeContent()) // the creative screen crashes without its listing, whatever the mode now
+	if welcome.Gamemode == 1 {       // creative
 		abilities |= protocol.AbilityMayFly | protocol.AbilityInstantBuild
 	}
 	biomeDefs, biomeStrs := dfworld.BiomeDefinitions()
@@ -851,6 +852,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							}
 							if s.beacon != nil {
 								b.Write(attach.MsgSetBeacon, *s.beacon)
+							}
+							if s.creative != nil {
+								b.Write(attach.MsgCreativeSlot, *s.creative)
 							}
 							if s.place != nil {
 								b.Write(attach.MsgCraft, *s.place)
