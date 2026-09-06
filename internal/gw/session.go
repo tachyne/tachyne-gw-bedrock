@@ -107,6 +107,9 @@ type entState struct {
 	player   bool
 	pos      mgl32.Vec3 // feet
 	velocity mgl32.Vec3 // a dropped item's launch (AddItemActor carries it)
+	onFire   bool       // the entity flags Bedrock renders (entitymeta.go)
+	sneaking bool
+	baby     bool
 	yaw      float32
 	pitch    float32
 	headYaw  float32
@@ -483,6 +486,11 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case attach.MsgEntityMeta:
 				var e attach.EntityMeta
 				if json.Unmarshal(payload, &e) == nil {
+					if st := ents[e.EID]; st != nil && e.EID != welcome.EID {
+						if st.applyMeta(parseSimpleMeta(e.Meta)) {
+							send(actorData(e.EID, st))
+						}
+					}
 					if st := pendingItems[e.EID]; st != nil {
 						if stack, ok := itemMetaStack(e.Meta); ok {
 							delete(pendingItems, e.EID)
