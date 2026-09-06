@@ -138,7 +138,10 @@ func uiContainer(id byte) bool {
 		protocol.ContainerGrindstoneInput, protocol.ContainerGrindstoneAdditional, protocol.ContainerGrindstoneResultPreview,
 		protocol.ContainerTradeTwoIngredientOne, protocol.ContainerTradeTwoIngredientTwo, protocol.ContainerTradeTwoResultPreview,
 		protocol.ContainerEnchantingInput, protocol.ContainerEnchantingMaterial,
-		protocol.ContainerStonecutterInput, protocol.ContainerStonecutterResultPreview:
+		protocol.ContainerStonecutterInput, protocol.ContainerStonecutterResultPreview,
+		protocol.ContainerSmithingTableTemplate, protocol.ContainerSmithingTableInput, protocol.ContainerSmithingTableMaterial,
+		protocol.ContainerSmithingTableResultPreview,
+		protocol.ContainerLoomInput, protocol.ContainerLoomDye, protocol.ContainerLoomMaterial, protocol.ContainerLoomResultPreview:
 		return true
 	}
 	return false
@@ -149,7 +152,8 @@ func uiContainer(id byte) bool {
 func resultContainer(id byte) bool {
 	switch id {
 	case protocol.ContainerCraftingOutputPreview, protocol.ContainerAnvilResultPreview, protocol.ContainerGrindstoneResultPreview,
-		protocol.ContainerTradeTwoResultPreview, protocol.ContainerStonecutterResultPreview:
+		protocol.ContainerTradeTwoResultPreview, protocol.ContainerStonecutterResultPreview,
+		protocol.ContainerSmithingTableResultPreview, protocol.ContainerLoomResultPreview:
 		return true
 	}
 	return false

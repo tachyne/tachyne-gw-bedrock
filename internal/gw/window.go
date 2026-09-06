@@ -86,6 +86,23 @@ var stonecutterLayout = []winSlot{
 	{protocol.ContainerStonecutterResultPreview, craftOutputSlot},
 }
 
+// smithingLayout and loomLayout: Java's template/base/addition/result and
+// banner/dye/pattern/result, in the UI window.
+var (
+	smithingLayout = []winSlot{
+		{protocol.ContainerSmithingTableTemplate, 53},
+		{protocol.ContainerSmithingTableInput, 51},
+		{protocol.ContainerSmithingTableMaterial, 52},
+		{protocol.ContainerSmithingTableResultPreview, craftOutputSlot},
+	}
+	loomLayout = []winSlot{
+		{protocol.ContainerLoomInput, 9},
+		{protocol.ContainerLoomDye, 10},
+		{protocol.ContainerLoomMaterial, 11},
+		{protocol.ContainerLoomResultPreview, craftOutputSlot},
+	}
+)
+
 var menuWindows = map[int32]menuWindow{
 	0:  {chestLayout(9), protocol.ContainerTypeContainer},      // generic_9x1
 	1:  {chestLayout(18), protocol.ContainerTypeContainer},     // generic_9x2
@@ -102,8 +119,10 @@ var menuWindows = map[int32]menuWindow{
 	14: {furnaceLayout, protocol.ContainerTypeFurnace},         // furnace
 	15: {grindstoneLayout, protocol.ContainerTypeGrindstone},   // grindstone
 	16: {chestLayout(5), protocol.ContainerTypeHopper},         // hopper
+	18: {loomLayout, protocol.ContainerTypeLoom},               // loom
 	19: {tradeLayout, protocol.ContainerTypeTrade},             // merchant
 	20: {chestLayout(27), protocol.ContainerTypeContainer},     // shulker_box
+	21: {smithingLayout, protocol.ContainerTypeSmithingTable},  // smithing
 	24: {stonecutterLayout, protocol.ContainerTypeStonecutter}, // stonecutter
 	22: {furnaceLayout, protocol.ContainerTypeSmoker},          // smoker
 }
@@ -127,6 +146,8 @@ func (w *winState) open(id int32, layout []winSlot, ctype byte, title string) *i
 	w.mirror = newWindowMirror(id, layout)
 	w.mirror.table = ctype == protocol.ContainerTypeEnchantment
 	w.mirror.cutter = ctype == protocol.ContainerTypeStonecutter
+	w.mirror.smith = ctype == protocol.ContainerTypeSmithingTable
+	w.mirror.loom = ctype == protocol.ContainerTypeLoom
 	for i := range w.mirror.ench {
 		w.mirror.ench[i] = enchantRow{bedrock: -1, level: -1}
 	}

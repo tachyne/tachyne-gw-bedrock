@@ -134,6 +134,7 @@ func (r *recipeSet) packet() *packet.CraftingData {
 			RecipeNetworkID:   networkID(s.ID),
 		})
 	}
+	pk.Recipes = append(pk.Recipes, smithingRecipes()...)
 	for i, r := range tproto.StonecuttingRecipes { // the stonecutter's, as one-input shapeless recipes
 		out, ok := bedrockStackOf(attach.ItemStack{ID: r.Out, Count: int32(r.Count)})
 		d, ok2 := descriptor(r.In)
@@ -238,6 +239,16 @@ func (m *invMirror) applyCraft(req protocol.ItemStackRequest, recipes *recipeSet
 			if m.result != 2 || !preview() {
 				return fail()
 			}
+		case *protocol.CraftLoomRecipeStackRequestAction: // the loom: the pattern's row, then the banner
+			if !m.loom || named || m.slots[0].Count <= 0 {
+				return fail()
+			}
+			button, ok := loomButton(act.Pattern, m.slots[2].ID)
+			if !ok {
+				return fail()
+			}
+			out, named = craftOutput{result: attach.ItemStack{ID: m.slots[0].ID, Count: 1}}, true
+			steps = append(steps, craftStep{ench: &attach.Enchant{Button: button}})
 		case *protocol.CraftRecipeStackRequestAction:
 			if m.table { // the enchanting table: the row is a button, the world does the rest
 				button, ok := m.enchantButton(act.RecipeNetworkID)
@@ -246,6 +257,17 @@ func (m *invMirror) applyCraft(req protocol.ItemStackRequest, recipes *recipeSet
 				}
 				m.slots = before
 				return nil, []craftStep{{ench: &attach.Enchant{Button: button}}}, true
+			}
+			if m.smith { // the smithing table: the transform's result, or the world's preview
+				if named {
+					return fail()
+				}
+				if res, ok := smithRecipes[act.RecipeNetworkID]; ok {
+					out, named = craftOutput{result: res}, true
+				} else if !preview() {
+					return fail()
+				}
+				continue
 			}
 			if m.cutter { // the stonecutter: the recipe picks the row, the row's result is taken
 				e, ok := stonecutRecipes[act.RecipeNetworkID]

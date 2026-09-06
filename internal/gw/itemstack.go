@@ -53,6 +53,8 @@ type invMirror struct {
 	ench   [3]enchantRow                            // an enchanting table's rows
 	table  bool                                     // …which this window is
 	cutter bool                                     // a stonecutter
+	smith  bool                                     // a smithing table
+	loom   bool                                     // a loom
 }
 
 // setTrades records a trade screen's offers (what each sells).
@@ -257,7 +259,8 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest, recipes *recipeS
 	if len(req.Actions) > 0 {
 		switch req.Actions[0].(type) {
 		case *protocol.CraftRecipeStackRequestAction, *protocol.AutoCraftRecipeStackRequestAction,
-			*protocol.CraftRecipeOptionalStackRequestAction, *protocol.CraftGrindstoneRecipeStackRequestAction:
+			*protocol.CraftRecipeOptionalStackRequestAction, *protocol.CraftGrindstoneRecipeStackRequestAction,
+			*protocol.CraftLoomRecipeStackRequestAction:
 			return m.applyCraft(req, recipes)
 		}
 	}
