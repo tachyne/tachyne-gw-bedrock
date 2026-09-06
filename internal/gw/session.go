@@ -498,6 +498,13 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						}
 					}
 				}
+			case attach.MsgSound:
+				var e attach.Sound
+				if json.Unmarshal(payload, &e) == nil {
+					if p := levelSound(e); p != nil {
+						send(p)
+					}
+				}
 			case attach.MsgHurt:
 				// The hurt flash + tilt (Java's damage event) is an actor event here.
 				var e attach.Hurt
