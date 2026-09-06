@@ -147,7 +147,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   players, team prefix/suffix/colour on the names); the mount screen
   (a horse's saddle and armour, a donkey's or llama's saddle or carpet
   plus its chest, laid out as Bedrock's horse container on the animal,
-  with the client told what each equipment slot takes); the creative inventory
+  with the client told what each equipment slot takes); command
+  autocomplete (the world's command names, each taking the rest of the
+  line); the creative inventory
   (every mapped item listed, blocks under construction; taking, dropping
   and destroying become the world's creative slot sets, or declared
   clicks inside a container); dropping items (from a window, or the held
@@ -169,9 +171,7 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
 - NOT YET: the Java advancements screen (Bedrock has no tree to show;
   completions toast and are announced in chat), the crafter (closed
   straight back so the world does not wait on it), taking a book off a
-  lectern from its screen (walk up and break it, or use Java), command
-  autocomplete (the brigadier tree is not rendered as AvailableCommands
-  yet), pet collar
+  lectern from its screen (walk up and break it, or use Java), pet collar
   colours (the engine does not sync them yet) and the pig/cow/chicken
   climate variants (Bedrock entity properties, not actor data), the particles
   Geyser's table has no Bedrock name for, Java players' skins (the world

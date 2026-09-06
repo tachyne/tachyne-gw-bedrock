@@ -351,6 +351,13 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						}
 					}
 				}
+			case attach.MsgCommandTree:
+				var e attach.CommandTree
+				if json.Unmarshal(payload, &e) == nil {
+					if names := commandNames(e.Data); len(names) > 0 {
+						send(availableCommands(names))
+					}
+				}
 			case attach.MsgHorseScreen:
 				var e attach.HorseScreen
 				if json.Unmarshal(payload, &e) == nil {
