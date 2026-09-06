@@ -438,10 +438,13 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				var e attach.WindowOpen
 				if json.Unmarshal(payload, &e) == nil {
 					if mw, ok := menuWindows[e.Menu]; ok {
-						win.open(e.ID, mw.size, mw.ctype)
+						win.open(e.ID, mw.layout, mw.ctype)
 						p := win.usedAt()
 						send(&packet.ContainerOpen{WindowID: byte(e.ID), ContainerType: mw.ctype,
 							ContainerPosition: protocol.BlockPos{p[0], p[1], p[2]}, ContainerEntityUniqueID: -1})
+						if mw.ctype == protocol.ContainerTypeBrewingStand { // vanilla's fuel bar spans 20 uses
+							send(&packet.ContainerSetData{WindowID: byte(e.ID), Key: packet.ContainerDataBrewingStandFuelTotal, Value: 20})
+						}
 					} else {
 						b.Write(attach.MsgWindowClose, attach.WindowClose{}) // no Bedrock twin: do not leave the world waiting
 					}
@@ -455,6 +458,13 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					} else if wm := win.current(); wm != nil && wm.window == e.ID {
 						wm.setAll(e.Slots, e.Cursor)
 						sendWindowItems(c, wm, e.Slots)
+					}
+				}
+			case attach.MsgWindowData:
+				var e attach.WindowData
+				if json.Unmarshal(payload, &e) == nil {
+					if wm, ctype := win.currentType(); wm != nil && wm.window == e.ID {
+						windowData(c, wm, ctype, e.Prop, e.Value)
 					}
 				}
 			case attach.MsgWindowSlot:

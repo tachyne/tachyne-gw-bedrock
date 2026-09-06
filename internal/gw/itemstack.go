@@ -47,6 +47,7 @@ type invMirror struct {
 	window int32                                    // the Java window id the clicks name (0 = the player's own)
 	mapIn  func(container, slot byte) (int32, bool) // Bedrock slot → Java slot
 	mapOut func(slot int32) (byte, uint32, bool)    // Java slot → Bedrock container + index
+	layout []winSlot                                // container windows: where Bedrock keeps each container slot
 }
 
 // newInvMirror is the player's own inventory window.
@@ -55,18 +56,33 @@ func newInvMirror() *invMirror {
 		mapIn: bedrockToJavaSlot, mapOut: javaToBedrockSlot}
 }
 
-// newWindowMirror is a container window of size slots: Java lays them out as
-// the container first, then the player's main inventory (27) and hotbar (9).
-func newWindowMirror(id int32, size int) *invMirror {
-	m := &invMirror{slots: make([]attach.ItemStack, size+36+1), cursor: int32(size + 36), window: id}
+// winSlot is where Bedrock keeps one of a window's container slots: the
+// named container and the index within the window's content.
+type winSlot struct {
+	container byte
+	idx       uint32
+}
+
+// chestLayout is the chest-shaped layout: n slots of the block entity, in
+// order.
+func chestLayout(n int) []winSlot {
+	l := make([]winSlot, n)
+	for i := range l {
+		l[i] = winSlot{protocol.ContainerLevelEntity, uint32(i)}
+	}
+	return l
+}
+
+// newWindowMirror is a container window whose container slots Bedrock keeps
+// as layout says (indexed by Java slot): Java lays a window out as the
+// container first, then the player's main inventory (27) and hotbar (9).
+func newWindowMirror(id int32, layout []winSlot) *invMirror {
+	size := len(layout)
+	m := &invMirror{slots: make([]attach.ItemStack, size+36+1), cursor: int32(size + 36), window: id, layout: layout}
 	m.mapIn = func(container, slot byte) (int32, bool) {
 		switch container {
 		case protocol.ContainerCursor:
 			return m.cursor, true
-		case protocol.ContainerLevelEntity:
-			if int(slot) < size {
-				return int32(slot), true
-			}
 		case protocol.ContainerInventory, protocol.ContainerHotBar, protocol.ContainerCombinedHotBarAndInventory:
 			if slot < 9 {
 				return int32(size+27) + int32(slot), true // hotbar comes last in Java
@@ -74,13 +90,19 @@ func newWindowMirror(id int32, size int) *invMirror {
 			if slot < bedrockInvSize {
 				return int32(size) + int32(slot) - 9, true
 			}
+		default:
+			for j, ws := range layout {
+				if ws.container == container && ws.idx == uint32(slot) {
+					return int32(j), true
+				}
+			}
 		}
 		return 0, false
 	}
 	m.mapOut = func(slot int32) (byte, uint32, bool) {
 		switch {
 		case slot >= 0 && int(slot) < size:
-			return protocol.ContainerLevelEntity, uint32(slot), true
+			return layout[slot].container, layout[slot].idx, true
 		case int(slot) >= size && int(slot) < size+27:
 			return protocol.ContainerInventory, uint32(int(slot) - size + 9), true
 		case int(slot) >= size+27 && int(slot) < size+36:

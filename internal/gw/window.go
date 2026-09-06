@@ -8,29 +8,53 @@ import (
 	attach "github.com/tachyne/tachyne-common/attach"
 )
 
-// Container windows. The world opens a Java menu by canonical id; the
-// chest-shaped ones (the generic rows, the 3×3 bin, the hopper, the shulker
-// box) have a Bedrock container of the same shape, opened at the block the
-// player last used, with the container's slots as ContainerLevelEntity and
-// the player's own below. Menus with no Bedrock twin are closed straight
-// back so the world does not wait on them.
+// Container windows. The world opens a Java menu by canonical id; the ones
+// with a Bedrock container of the same shape — the chest-shaped generic
+// rows, the 3×3 bin, the hopper, the shulker box, the furnace family and
+// the brewing stand — open at the block the player last used, with the
+// container's slots laid out where Bedrock keeps them and the player's own
+// below. Menus with no Bedrock twin are closed straight back so the world
+// does not wait on them.
 
-// menuWindow describes a canonical menu Bedrock can show.
+// menuWindow describes a canonical menu Bedrock can show: the Bedrock home
+// of each container slot, indexed by Java slot, and the container type.
 type menuWindow struct {
-	size  int
-	ctype byte
+	layout []winSlot
+	ctype  byte
+}
+
+// furnaceLayout: input, fuel, result — Bedrock's furnace keeps them under
+// their own container names at the same indices.
+var furnaceLayout = []winSlot{
+	{protocol.ContainerFurnaceIngredient, 0},
+	{protocol.ContainerFurnaceFuel, 1},
+	{protocol.ContainerFurnaceResult, 2},
+}
+
+// brewingLayout: Java's three bottles, ingredient, fuel are Bedrock's
+// ingredient at 0, bottles at 1-3, fuel at 4.
+var brewingLayout = []winSlot{
+	{protocol.ContainerBrewingStandResult, 1},
+	{protocol.ContainerBrewingStandResult, 2},
+	{protocol.ContainerBrewingStandResult, 3},
+	{protocol.ContainerBrewingStandInput, 0},
+	{protocol.ContainerBrewingStandFuel, 4},
 }
 
 var menuWindows = map[int32]menuWindow{
-	0:  {9, protocol.ContainerTypeContainer},  // generic_9x1
-	1:  {18, protocol.ContainerTypeContainer}, // generic_9x2
-	2:  {27, protocol.ContainerTypeContainer}, // generic_9x3
-	3:  {36, protocol.ContainerTypeContainer}, // generic_9x4
-	4:  {45, protocol.ContainerTypeContainer}, // generic_9x5
-	5:  {54, protocol.ContainerTypeContainer}, // generic_9x6
-	6:  {9, protocol.ContainerTypeDispenser},  // generic_3x3 (dispenser/dropper)
-	16: {5, protocol.ContainerTypeHopper},     // hopper
-	20: {27, protocol.ContainerTypeContainer}, // shulker_box
+	0:  {chestLayout(9), protocol.ContainerTypeContainer},   // generic_9x1
+	1:  {chestLayout(18), protocol.ContainerTypeContainer},  // generic_9x2
+	2:  {chestLayout(27), protocol.ContainerTypeContainer},  // generic_9x3
+	3:  {chestLayout(36), protocol.ContainerTypeContainer},  // generic_9x4
+	4:  {chestLayout(45), protocol.ContainerTypeContainer},  // generic_9x5
+	5:  {chestLayout(54), protocol.ContainerTypeContainer},  // generic_9x6
+	6:  {chestLayout(9), protocol.ContainerTypeDispenser},   // generic_3x3 (dispenser/dropper)
+	10: {furnaceLayout, protocol.ContainerTypeBlastFurnace}, // blast_furnace
+	11: {brewingLayout, protocol.ContainerTypeBrewingStand}, // brewing_stand
+	14: {furnaceLayout, protocol.ContainerTypeFurnace},      // furnace
+	16: {chestLayout(5), protocol.ContainerTypeHopper},      // hopper
+	20: {chestLayout(27), protocol.ContainerTypeContainer},  // shulker_box
+	22: {furnaceLayout, protocol.ContainerTypeSmoker},       // smoker
 }
 
 // winState is the container window open for this client, shared between
@@ -43,10 +67,10 @@ type winState struct {
 	lastUse [3]int32
 }
 
-func (w *winState) open(id int32, size int, ctype byte) *invMirror {
+func (w *winState) open(id int32, layout []winSlot, ctype byte) *invMirror {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.mirror = newWindowMirror(id, size)
+	w.mirror = newWindowMirror(id, layout)
 	w.ctype = ctype
 	return w.mirror
 }
@@ -56,6 +80,13 @@ func (w *winState) current() *invMirror {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.mirror
+}
+
+// currentType returns the open window's mirror and container type.
+func (w *winState) currentType() (*invMirror, byte) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.mirror, w.ctype
 }
 
 func (w *winState) close() (id int32, ctype byte, was bool) {
@@ -81,13 +112,14 @@ func (w *winState) usedAt() [3]int32 {
 	return w.lastUse
 }
 
-// sendWindowItems renders a container window: its own slots, then the
-// player's inventory as the window's lower half shows it.
+// sendWindowItems renders a container window: its own slots where Bedrock
+// keeps them, then the player's inventory as the window's lower half.
 func sendWindowItems(w packetWriter, m *invMirror, slots []attach.ItemStack) {
-	size := len(m.slots) - 36 - 1
-	content := make([]protocol.ItemInstance, size)
-	for i := 0; i < size && i < len(slots); i++ {
-		content[i] = bedrockStack(slots[i])
+	content := make([]protocol.ItemInstance, len(m.layout))
+	for j, ws := range m.layout {
+		if j < len(slots) && int(ws.idx) < len(content) {
+			content[ws.idx] = bedrockStack(slots[j])
+		}
 	}
 	w.WritePacket(&packet.InventoryContent{
 		WindowID:  uint32(m.window),
@@ -99,13 +131,13 @@ func sendWindowItems(w packetWriter, m *invMirror, slots []attach.ItemStack) {
 
 // sendWindowSlot renders one changed slot of a container window.
 func sendWindowSlot(w packetWriter, m *invMirror, slot int32, st attach.ItemStack) {
-	size := len(m.slots) - 36 - 1
-	if int(slot) < size {
+	if int(slot) < len(m.layout) {
+		ws := m.layout[slot]
 		w.WritePacket(&packet.InventorySlot{
 			WindowID:  uint32(m.window),
-			Slot:      uint32(slot),
+			Slot:      ws.idx,
 			NewItem:   bedrockStack(st),
-			Container: protocol.Option(fullContainer(protocol.ContainerLevelEntity)),
+			Container: protocol.Option(fullContainer(ws.container)),
 		})
 		return
 	}
@@ -117,4 +149,37 @@ func sendWindowSlot(w packetWriter, m *invMirror, slot int32, st attach.ItemStac
 			sendInventorySlot(w, int32(idx), st)
 		}
 	}
+}
+
+// windowData relays a Java menu property (the furnace's burn and cook bars,
+// the brewing stand's brew time and fuel) as Bedrock's container data. The
+// furnace's total cook time has no Bedrock key: its client assumes the
+// container type's own pace.
+func windowData(w packetWriter, m *invMirror, ctype byte, prop, value int32) {
+	var key int32
+	switch ctype {
+	case protocol.ContainerTypeFurnace, protocol.ContainerTypeBlastFurnace, protocol.ContainerTypeSmoker:
+		switch prop {
+		case 0:
+			key = packet.ContainerDataFurnaceLitTime
+		case 1:
+			key = packet.ContainerDataFurnaceLitDuration
+		case 2:
+			key = packet.ContainerDataFurnaceTickCount
+		default:
+			return
+		}
+	case protocol.ContainerTypeBrewingStand:
+		switch prop {
+		case 0:
+			key = packet.ContainerDataBrewingStandBrewTime
+		case 1:
+			key = packet.ContainerDataBrewingStandFuelAmount
+		default:
+			return
+		}
+	default:
+		return
+	}
+	w.WritePacket(&packet.ContainerSetData{WindowID: byte(m.window), Key: key, Value: value})
 }
