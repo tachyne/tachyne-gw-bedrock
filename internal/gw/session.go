@@ -849,6 +849,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							if s.ench != nil {
 								b.Write(attach.MsgEnchant, *s.ench)
 							}
+							if s.beacon != nil {
+								b.Write(attach.MsgSetBeacon, *s.beacon)
+							}
 							if s.place != nil {
 								b.Write(attach.MsgCraft, *s.place)
 							}

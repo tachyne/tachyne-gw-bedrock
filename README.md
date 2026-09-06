@@ -121,8 +121,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   (its recipes ride in the crafting data, and a cut picks the world's row
   before the take); the smithing table (netherite upgrades as transform
   recipes, armor trims through Bedrock's trim data and the tag-written
-  trim recipe) and the loom (Bedrock's pattern pick becomes the world's
-  row); block-break,
+  trim recipe), the loom (Bedrock's pattern pick becomes the world's
+  row) and the beacon (the chosen effects live on its block entity, and
+  the payment becomes the world's SetBeacon); block-break,
   bone-meal, crit, explosion, poof and bubble
   particles as level events; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers
@@ -131,8 +132,8 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   the world through the per-window slot map).
 - NOT YET: the Java advancements screen (Bedrock has no tree to show;
   completions toast and are announced in chat), the remaining menus
-  (cartography, beacon, lectern, crafter… are closed straight back so
-  the world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
+  (cartography table, lectern, crafter are closed straight back so the
+  world does not wait on them), the entity metadata the engine does not yet sync (wolf, cat,
   horse, llama, parrot and rabbit variants and collars), most particles, real Java skin → Bedrock skin conversion, on_ground
   derivation (a Y-stability heuristic rather than real ground detection, so
   Bedrock fall damage is unreliable).

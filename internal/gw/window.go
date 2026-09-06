@@ -112,6 +112,7 @@ var menuWindows = map[int32]menuWindow{
 	5:  {chestLayout(54), protocol.ContainerTypeContainer},     // generic_9x6
 	6:  {chestLayout(9), protocol.ContainerTypeDispenser},      // generic_3x3 (dispenser/dropper)
 	8:  {anvilLayout, protocol.ContainerTypeAnvil},             // anvil
+	9:  {beaconLayout, protocol.ContainerTypeBeacon},           // beacon
 	10: {furnaceLayout, protocol.ContainerTypeBlastFurnace},    // blast_furnace
 	11: {brewingLayout, protocol.ContainerTypeBrewingStand},    // brewing_stand
 	12: {craftingLayout, protocol.ContainerTypeWorkbench},      // crafting
@@ -148,6 +149,8 @@ func (w *winState) open(id int32, layout []winSlot, ctype byte, title string) *i
 	w.mirror.cutter = ctype == protocol.ContainerTypeStonecutter
 	w.mirror.smith = ctype == protocol.ContainerTypeSmithingTable
 	w.mirror.loom = ctype == protocol.ContainerTypeLoom
+	w.mirror.beacon = ctype == protocol.ContainerTypeBeacon
+	w.mirror.at = w.lastUse
 	for i := range w.mirror.ench {
 		w.mirror.ench[i] = enchantRow{bedrock: -1, level: -1}
 	}
@@ -273,6 +276,11 @@ func windowData(w packetWriter, m *invMirror, ctype byte, prop, value int32) {
 	case protocol.ContainerTypeEnchantment:
 		if m.enchantProp(prop, value) {
 			w.WritePacket(m.enchantOptions())
+		}
+		return
+	case protocol.ContainerTypeBeacon:
+		if pk := m.beaconProp(prop, value); pk != nil {
+			w.WritePacket(pk)
 		}
 		return
 	case protocol.ContainerTypeFurnace, protocol.ContainerTypeBlastFurnace, protocol.ContainerTypeSmoker:

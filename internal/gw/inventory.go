@@ -141,7 +141,8 @@ func uiContainer(id byte) bool {
 		protocol.ContainerStonecutterInput, protocol.ContainerStonecutterResultPreview,
 		protocol.ContainerSmithingTableTemplate, protocol.ContainerSmithingTableInput, protocol.ContainerSmithingTableMaterial,
 		protocol.ContainerSmithingTableResultPreview,
-		protocol.ContainerLoomInput, protocol.ContainerLoomDye, protocol.ContainerLoomMaterial, protocol.ContainerLoomResultPreview:
+		protocol.ContainerLoomInput, protocol.ContainerLoomDye, protocol.ContainerLoomMaterial, protocol.ContainerLoomResultPreview,
+		protocol.ContainerBeaconPayment:
 		return true
 	}
 	return false

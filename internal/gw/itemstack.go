@@ -55,6 +55,10 @@ type invMirror struct {
 	cutter bool                                     // a stonecutter
 	smith  bool                                     // a smithing table
 	loom   bool                                     // a loom
+	beacon bool                                     // a beacon
+	at     [3]int32                                 // the block the window sits at
+	// beaconPrimary/Secondary are the beacon's chosen effects (Bedrock's numbering).
+	beaconPrimary, beaconSecondary int32
 }
 
 // setTrades records a trade screen's offers (what each sells).
@@ -262,6 +266,11 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest, recipes *recipeS
 			*protocol.CraftRecipeOptionalStackRequestAction, *protocol.CraftGrindstoneRecipeStackRequestAction,
 			*protocol.CraftLoomRecipeStackRequestAction:
 			return m.applyCraft(req, recipes)
+		case *protocol.BeaconPaymentStackRequestAction: // the world consumes the payment itself
+			if !m.beacon {
+				return nil, nil, false
+			}
+			return nil, []craftStep{{beacon: beaconPayment(req.Actions[0].(*protocol.BeaconPaymentStackRequestAction))}}, true
 		}
 	}
 	before := append([]attach.ItemStack(nil), m.slots...)

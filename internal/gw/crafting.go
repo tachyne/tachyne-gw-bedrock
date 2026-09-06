@@ -196,11 +196,12 @@ func recipeUUID(id int32) uuid.UUID {
 // craftStep is one thing the world must do for a craft request, in order:
 // place a book recipe into the grid, or a window click.
 type craftStep struct {
-	place *attach.Craft
-	click *attach.WindowClick
-	name  *string          // the anvil's rename box
-	sel   *attach.SelTrade // the trade screen's chosen offer
-	ench  *attach.Enchant  // the enchanting table's chosen row, or the stonecutter's
+	place  *attach.Craft
+	click  *attach.WindowClick
+	name   *string           // the anvil's rename box
+	sel    *attach.SelTrade  // the trade screen's chosen offer
+	ench   *attach.Enchant   // the enchanting table's chosen row, or the stonecutter's
+	beacon *attach.SetBeacon // the beacon's chosen effects
 }
 
 // applyCraft resolves a craft request against the mirror (held locked):
