@@ -98,11 +98,12 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   stack; the common sounds (mob voices, hits, chests, doors, explosions…)
   as level sound events; what entities hold and wear (mob equipment and
   armour packets); burning, sneaking and baby entities (actor flags and
-  scale).
+  scale); block-break, bone-meal, crit, explosion, poof and bubble
+  particles as level events.
 - NOT YET: Java advancement toasts/screen (completions reach Bedrock
   players as chat announcements only), container windows (only the
   player's own inventory renders), most entity metadata (variants,
-  colours, poses beyond crouching), particles, nether/end
+  colours, poses beyond crouching), most particles, nether/end
   (ChangeDimension + per-dimension chunk ranges — engine chunks are 24
   sections everywhere; Bedrock nether is 8),
   boat wood variants, real Java skin → Bedrock skin conversion, on_ground

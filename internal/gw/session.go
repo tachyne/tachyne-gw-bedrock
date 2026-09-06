@@ -523,6 +523,20 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						Body:            bedrockStack(e.Slots[attach.EquipBody]),
 					})
 				}
+			case attach.MsgParticles:
+				var e attach.Particles
+				if json.Unmarshal(payload, &e) == nil {
+					if p := particleEvent(e); p != nil {
+						send(p)
+					}
+				}
+			case attach.MsgWorldFX:
+				var e attach.WorldFX
+				if json.Unmarshal(payload, &e) == nil {
+					if p := worldEvent(e); p != nil {
+						send(p)
+					}
+				}
 			case attach.MsgSound:
 				var e attach.Sound
 				if json.Unmarshal(payload, &e) == nil {
