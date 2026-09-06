@@ -224,3 +224,26 @@ func TestAnAcceptedRequestReportsTheNewSlots(t *testing.T) {
 		t.Errorf("containers reported: inv=%v cursor=%v, want both", sawInv, sawCursor)
 	}
 }
+
+// Dropping: a window drop sheds the slot and declares it (the world drops
+// the difference); the in-world drop of a held stack does the same
+// through the transaction path.
+func TestDrops(t *testing.T) {
+	m := mirrorWith(t, 39, 10) // hotbar slot 3, ten dirt
+	drop := &protocol.DropStackRequestAction{Count: 4, Source: slotInfo(protocol.ContainerHotBar, 3)}
+	changed, _, ok := m.applyRequest(protocol.ItemStackRequest{Actions: []protocol.StackRequestAction{drop}}, nil)
+	if !ok || len(changed) != 1 || changed[0] != 39 || m.slots[39].Count != 6 {
+		t.Fatalf("drop: ok=%v changed=%v slot %+v", ok, changed, m.slots[39])
+	}
+	if e := m.clickFor(changed); e.Slot != 39 || e.Changed[0].Item.Count != 6 {
+		t.Errorf("declared %+v", e)
+	}
+	if _, _, ok := m.applyRequest(protocol.ItemStackRequest{Actions: []protocol.StackRequestAction{
+		&protocol.DropStackRequestAction{Count: 7, Source: slotInfo(protocol.ContainerHotBar, 3)}}}, nil); ok || m.slots[39].Count != 6 {
+		t.Error("dropped more than held")
+	}
+	click, ok := m.dropHeld(protocol.ContainerInventory, 3, 6)
+	if !ok || click.Slot != 39 || click.Changed[0].Item.Count != 0 || m.slots[39].Count != 0 {
+		t.Errorf("held drop: ok=%v click=%+v slot %+v", ok, click, m.slots[39])
+	}
+}

@@ -126,7 +126,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   the payment becomes the world's SetBeacon); the creative inventory
   (every mapped item listed, blocks under construction; taking, dropping
   and destroying become the world's creative slot sets, or declared
-  clicks inside a container); block-break,
+  clicks inside a container); dropping items (from a window, or the held
+  stack in the world — the declared slot holds less and the world drops
+  the difference); block-break,
   bone-meal, crit, explosion, poof and bubble
   particles as level events; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers

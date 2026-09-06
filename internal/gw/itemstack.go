@@ -244,6 +244,35 @@ func (m *invMirror) transfer(from, to int32, count int) bool {
 	return true
 }
 
+// shed takes count items out of a slot (held locked) — what a drop
+// leaves behind. False when the slot has fewer.
+func (m *invMirror) shed(slot, count int32) bool {
+	if slot < 0 || int(slot) >= len(m.slots) || count <= 0 || m.slots[slot].Count < count {
+		return false
+	}
+	st := m.slots[slot]
+	st.Count -= count
+	if st.Count == 0 {
+		st = attach.ItemStack{}
+	}
+	m.slots[slot] = st
+	return true
+}
+
+// dropHeld is the in-world drop of a hotbar or inventory stack (no window
+// open): the slot sheds count and the click declaring it goes to the
+// world, which drops the difference.
+func (m *invMirror) dropHeld(container byte, slot byte, count int32) (attach.WindowClick, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	j, ok := m.mapIn(container, slot)
+	if !ok || !m.shed(j, count) {
+		return attach.WindowClick{}, false
+	}
+	return attach.WindowClick{ID: m.window, Slot: j, Mode: 0, Cursor: m.slots[m.cursor],
+		Changed: []attach.ClickChange{{Slot: j, Item: m.slots[j]}}}, true
+}
+
 // swap exchanges two slots outright.
 func (m *invMirror) swap(a, b int32) bool {
 	if a < 0 || b < 0 || int(a) >= len(m.slots) || int(b) >= len(m.slots) {
@@ -298,6 +327,15 @@ func (m *invMirror) applyRequest(req protocol.ItemStackRequest, recipes *recipeS
 				return nil, nil, false
 			}
 			touched[src], touched[dst] = true, true
+		case *protocol.DropStackRequestAction:
+			// Thrown out of the window: the declared slot simply holds less,
+			// and the world spawns what went missing as a drop.
+			slot, ok := m.mapIn(act.Source.Container.ContainerID, act.Source.Slot)
+			if !ok || !m.shed(slot, int32(act.Count)) {
+				m.slots = before
+				return nil, nil, false
+			}
+			touched[slot] = true
 		default:
 			// Drops, destroys and the whole craft family are not bridged yet.
 			// Refusing makes the client put it back, which is honest; guessing

@@ -887,6 +887,28 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				}
 			case *packet.InventoryTransaction:
 				switch td := p.TransactionData.(type) {
+				case *protocol.NormalTransactionData:
+					// The drop key on a held stack: a world-sourced action
+					// alongside the inventory slot that shrank.
+					toWorld := false
+					for _, a := range p.Actions {
+						if a.SourceType == protocol.InventoryActionSourceWorld {
+							toWorld = true
+						}
+					}
+					if !toWorld {
+						break
+					}
+					for _, a := range p.Actions {
+						if a.SourceType != protocol.InventoryActionSourceContainer || a.WindowID != protocol.WindowIDInventory {
+							continue
+						}
+						if shed := int32(a.OldItem.Stack.Count) - int32(a.NewItem.Stack.Count); shed > 0 {
+							if click, ok := mirror.dropHeld(protocol.ContainerInventory, byte(a.InventorySlot), shed); ok {
+								b.Write(attach.MsgWindowClick, click)
+							}
+						}
+					}
 				case *protocol.UseItemOnEntityTransactionData:
 					win.usedEntity(int64(td.TargetEntityRuntimeID))
 					b.Write(attach.MsgUseEntity, attach.UseEntity{
