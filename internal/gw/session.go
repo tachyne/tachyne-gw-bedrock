@@ -166,13 +166,8 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 	}
 	// Spawn-time packets, in order. Each used to be fire-and-forget; a client
 	// that dropped during them was only noticed once its read side failed.
-	abilities := uint32(protocol.AbilityBuild | protocol.AbilityMine |
-		protocol.AbilityDoorsAndSwitches | protocol.AbilityOpenContainers |
-		protocol.AbilityAttackPlayers | protocol.AbilityAttackMobs)
 	c.WritePacket(creativeContent()) // the creative screen crashes without its listing, whatever the mode now
-	if welcome.Gamemode == 1 {       // creative
-		abilities |= protocol.AbilityMayFly | protocol.AbilityInstantBuild
-	}
+	abilities := abilityValues(attach.Abilities{MayFly: welcome.Gamemode == 1, Creative: welcome.Gamemode == 1})
 	biomeDefs, biomeStrs := dfworld.BiomeDefinitions()
 	if err := sendAll(c,
 		// Real actor identifiers (gophertunnel only sends empty defaults):
@@ -184,19 +179,7 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 		// Abilities + attributes: vanilla/dragonfly/PMMP all send these right
 		// after spawn; without them the client's self-physics defaults are
 		// not dependable.
-		&packet.UpdateAbilities{AbilityData: protocol.AbilityData{
-			EntityUniqueID:     int64(welcome.EID),
-			PlayerPermissions:  packet.PermissionLevelMember,
-			CommandPermissions: protocol.CommandPermissionLevelAny,
-			Layers: []protocol.AbilityLayer{{
-				Type:             protocol.AbilityLayerTypeBase,
-				Abilities:        protocol.AbilityCount - 1,
-				Values:           abilities,
-				FlySpeed:         protocol.AbilityBaseFlySpeed,
-				VerticalFlySpeed: 1,
-				WalkSpeed:        protocol.AbilityBaseWalkSpeed,
-			}},
-		}},
+		abilitiesPacket(welcome.EID, abilities),
 		&packet.UpdateAttributes{
 			EntityRuntimeID: rt(welcome.EID),
 			Attributes: []protocol.Attribute{
@@ -363,6 +346,64 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							if pk, err := tradePacket(tl, win.usedEntityID(), int64(welcome.EID), win.currentTitle()); err == nil {
 								send(pk)
 							}
+						}
+					}
+				}
+			case attach.MsgEffect:
+				var e attach.Effect
+				if json.Unmarshal(payload, &e) == nil {
+					if pk := effectPacket(e); pk != nil {
+						send(pk)
+					}
+				}
+			case attach.MsgAbilities:
+				var e attach.Abilities
+				if json.Unmarshal(payload, &e) == nil {
+					send(abilitiesPacket(welcome.EID, abilityValues(e)))
+				}
+			case attach.MsgGameEvent:
+				var e attach.GameEvent
+				if json.Unmarshal(payload, &e) == nil {
+					for _, pk := range gameEventPackets(welcome.EID, e) {
+						send(pk)
+					}
+				}
+			case attach.MsgSwing:
+				var e attach.Swing
+				if json.Unmarshal(payload, &e) == nil && e.EID != welcome.EID {
+					send(&packet.Animate{ActionType: packet.AnimateActionSwingArm, EntityRuntimeID: rt(e.EID)})
+				}
+			case attach.MsgCollect:
+				var e attach.Collect
+				if json.Unmarshal(payload, &e) == nil {
+					send(&packet.TakeItemActor{ItemEntityRuntimeID: rt(e.Collected), TakerEntityRuntimeID: rt(e.Collector)})
+				}
+			case attach.MsgHeldSync:
+				var e attach.HeldSync
+				if json.Unmarshal(payload, &e) == nil && e.Slot >= 0 && e.Slot < 9 {
+					send(&packet.PlayerHotBar{SelectedHotBarSlot: uint32(e.Slot), WindowID: protocol.WindowIDInventory, SelectHotBarSlot: true})
+				}
+			case attach.MsgDifficulty:
+				var e attach.Difficulty
+				if json.Unmarshal(payload, &e) == nil && e.Level >= 0 && e.Level <= 3 {
+					send(&packet.SetDifficulty{Difficulty: uint32(e.Level)})
+				}
+			case attach.MsgBossBar:
+				var e attach.BossBar
+				if json.Unmarshal(payload, &e) == nil {
+					for _, pk := range bossBarPackets(e, int64(welcome.EID), mgl32.Vec3{float32(pos.X), float32(pos.Y), float32(pos.Z)}) {
+						send(pk)
+					}
+				}
+			case attach.MsgVehicleMove:
+				var e attach.VehicleMove
+				if json.Unmarshal(payload, &e) == nil {
+					if v := riding.Load(); v != 0 {
+						if st := ents[v]; st != nil { // the ride snapped back: move it, and us with it
+							st.pos = mgl32.Vec3{float32(e.X), float32(e.Y), float32(e.Z)}
+							st.yaw = e.Yaw
+							moveEntityVia(send, c, v, st, true)
+							pos.X, pos.Y, pos.Z = e.X, e.Y, e.Z
 						}
 					}
 				}
