@@ -105,14 +105,13 @@ func rt(eid int32) uint64 { return uint64(int64(eid)) }
 // domain events can be re-rendered whole (Bedrock movement is absolute).
 type entState struct {
 	player   bool
+	ident    string     // the Bedrock identifier (which mob this is, for metadata)
 	pos      mgl32.Vec3 // feet
 	velocity mgl32.Vec3 // a dropped item's launch (AddItemActor carries it)
-	onFire   bool       // the entity flags Bedrock renders (entitymeta.go)
-	sneaking bool
-	baby     bool
 	yaw      float32
 	pitch    float32
 	headYaw  float32
+	look     mobLook // what Bedrock renders of the entity's metadata (entitymeta.go)
 }
 
 // session bridges one authorized Bedrock client to the world over the attach
@@ -398,6 +397,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					switch {
 					case e.Type == canonicalPlayerType:
 						st.player = true
+						st.ident = "minecraft:player"
 						ents[e.EID] = st
 						send(&packet.AddPlayer{
 							UUID:            uuid.UUID(e.UUID),
@@ -422,6 +422,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							skipped[e.EID] = true // no Bedrock form (item frames, displays, …)
 							continue
 						}
+						st.ident = ident
 						ents[e.EID] = st
 						send(&packet.AddActor{
 							EntityUniqueID:  int64(e.EID),

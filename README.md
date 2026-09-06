@@ -97,8 +97,14 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   animations as actor events; dropped items as item actors carrying their
   stack; the common sounds (mob voices, hits, chests, doors, explosions…)
   as level sound events; what entities hold and wear (mob equipment and
-  armour packets); burning, sneaking and baby entities (actor flags and
-  scale); block-break, bone-meal, crit, explosion, poof and bubble
+  armour packets); mob looks from metadata (burning, sneaking, sprinting,
+  invisible, gliding, swimming and sleeping; babies; sheep colour and
+  shearing; pets sitting, tamed and angry; bee stings and anger; creeper
+  charge and fuse; slime and magma cube size; spiders climbing; zombies
+  converting; villager and zombie villager profession, biome and tier;
+  frog and axolotl variants; the enderman's carried block; the guardian
+  beam target; name tags; primed TNT fuse); block-break, bone-meal, crit,
+  explosion, poof and bubble
   particles as level events; container windows (chests, barrels, shulker
   boxes, hoppers, dispensers, droppers, furnaces, blast furnaces, smokers
   and brewing stands open at the used block with their slots where Bedrock
@@ -108,8 +114,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   players as chat announcements only), the remaining menus (crafting
   table, anvil, enchanting, grindstone, loom, smithing, stonecutter,
   beacon, trading… are closed straight back so the world does not wait on
-  them), most entity metadata (variants,
-  colours, poses beyond crouching), most particles, nether/end
+  them), the entity metadata the engine does not yet sync (wolf, cat,
+  horse, llama, parrot and rabbit variants and collars), most particles,
+  nether/end
   (ChangeDimension + per-dimension chunk ranges — engine chunks are 24
   sections everywhere; Bedrock nether is 8),
   boat wood variants, real Java skin → Bedrock skin conversion, on_ground
