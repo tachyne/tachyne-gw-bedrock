@@ -116,6 +116,9 @@ func newWindowMirror(id int32, layout []winSlot) *invMirror {
 				return int32(size) + int32(slot) - 9, true
 			}
 		default:
+			if slot == horseUnmapped {
+				return 0, false
+			}
 			if container == protocol.ContainerCreatedOutput { // a crafted result leaves through this name
 				if m.result >= 0 {
 					return m.result, true

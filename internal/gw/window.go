@@ -236,7 +236,13 @@ func sendWindowItems(w packetWriter, m *invMirror, slots []attach.ItemStack) {
 			}
 		}
 	} else {
-		content := make([]protocol.ItemInstance, len(m.layout))
+		size := 0
+		for _, ws := range m.layout {
+			if ws.idx != horseUnmapped && int(ws.idx)+1 > size {
+				size = int(ws.idx) + 1
+			}
+		}
+		content := make([]protocol.ItemInstance, size)
 		for j, ws := range m.layout {
 			if j < len(slots) && int(ws.idx) < len(content) {
 				content[ws.idx] = bedrockStack(slots[j])

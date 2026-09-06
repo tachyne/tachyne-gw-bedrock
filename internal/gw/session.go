@@ -351,6 +351,18 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						}
 					}
 				}
+			case attach.MsgHorseScreen:
+				var e attach.HorseScreen
+				if json.Unmarshal(payload, &e) == nil {
+					llama := false
+					if st := ents[e.EID]; st != nil {
+						llama = st.ident == "minecraft:llama" || st.ident == "minecraft:trader_llama"
+					}
+					win.open(e.ID, horseLayout(e.Columns, llama), protocol.ContainerTypeHorse, "")
+					send(horseEquipPacket(e.ID, int64(e.EID), e.Columns, llama))
+					send(&packet.ContainerOpen{WindowID: byte(e.ID), ContainerType: protocol.ContainerTypeHorse,
+						ContainerPosition: protocol.BlockPos{int32(pos.X), int32(pos.Y), int32(pos.Z)}, ContainerEntityUniqueID: int64(e.EID)})
+				}
 			case attach.MsgObjective:
 				var e attach.Objective
 				if json.Unmarshal(payload, &e) == nil {
