@@ -276,6 +276,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		skipped := map[int32]bool{}           // entities with no Bedrock form
 		pendingItems := map[int32]*entState{} // dropped items waiting for their stack (metadata) before AddItemActor
 		names := map[[16]byte]string{}        // uuid → username (PlayerInfo)
+		adv := newAdvBook()                   // advancement progress, for the toast
 		for {
 			typ, payload, err := attach.ReadFrame(b.Get())
 			if err != nil {
@@ -339,6 +340,18 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.level", Value: float32(e.Level), Max: 24791}, DefaultMax: 24791},
 						},
 					})
+				}
+			case attach.MsgAdvTree:
+				var t attach.AdvTree
+				if json.Unmarshal(payload, &t) == nil {
+					adv.tree(t)
+				}
+			case attach.MsgAdvProgress:
+				var p attach.AdvProgress
+				if json.Unmarshal(payload, &p) == nil {
+					for _, n := range adv.progress(p) {
+						send(advToast(n))
+					}
 				}
 			case attach.MsgChat:
 				var e attach.Chat
@@ -423,6 +436,11 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							continue
 						}
 						st.ident = ident
+						if int(e.Type) < len(javaEntityNames) {
+							if v, ok := boatVariant(javaEntityNames[e.Type]); ok {
+								st.look.hasVariant, st.look.variant = true, v // the boat's wood
+							}
+						}
 						ents[e.EID] = st
 						send(&packet.AddActor{
 							EntityUniqueID:  int64(e.EID),
@@ -431,7 +449,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							Position:        st.pos,
 							Velocity:        mgl32.Vec3{float32(e.VX), float32(e.VY), float32(e.VZ)},
 							Pitch:           e.Pitch, Yaw: e.Yaw, HeadYaw: e.Yaw, BodyYaw: e.Yaw,
-							EntityMetadata: baseMetadata(0, 0),
+							EntityMetadata: actorData(e.EID, st).EntityMetadata,
 						})
 					}
 				}
