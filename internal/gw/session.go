@@ -431,6 +431,19 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					st.yaw, st.pitch = e.Yaw, e.Pitch
 					moveEntityVia(send, c, e.EID, st, e.OnGround)
 				}
+			case attach.MsgHurt:
+				// The hurt flash + tilt (Java's damage event) is an actor event here.
+				var e attach.Hurt
+				if json.Unmarshal(payload, &e) == nil {
+					send(&packet.ActorEvent{EntityRuntimeID: rt(e.EID), EventType: packet.ActorEventHurt})
+				}
+			case attach.MsgEntityStatus:
+				// Only the death animation has a Bedrock twin worth sending;
+				// the other statuses (love, tame, cure) have no direct match.
+				var e attach.EntityStatus
+				if json.Unmarshal(payload, &e) == nil && e.Status == 3 {
+					send(&packet.ActorEvent{EntityRuntimeID: rt(e.EID), EventType: packet.ActorEventDeath})
+				}
 			case attach.MsgEntityHead:
 				var e attach.EntityHead
 				if json.Unmarshal(payload, &e) == nil {
