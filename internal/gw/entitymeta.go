@@ -252,6 +252,9 @@ func (st *entState) applyMobMeta(e metaEntry) {
 			if v, ok := catVariantBedrock[registryEntryName("minecraft:cat_variant", e.val)]; ok {
 				l.hasVariant, l.variant = true, v
 			}
+		case st.ident == "minecraft:wolf" && e.idx == 20 && e.typ == metaTypeVarInt, // DATA_COLLAR_COLOR: the dye ordinal
+			st.ident == "minecraft:cat" && e.idx == 22 && e.typ == metaTypeVarInt:
+			l.hasColor, l.color = true, byte(e.val&0x0f) // Bedrock's COLOR key, as Geyser sets it
 		case st.ident == "minecraft:parrot" && e.idx == 19 && e.typ == metaTypeVarInt: // colour: the same five numbers
 			l.hasVariant, l.variant = true, int32(clampIdx(e.val, 5))
 		}
