@@ -1,11 +1,13 @@
 package gw
 
 import (
+	"bytes"
 	"sync/atomic"
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	attach "github.com/tachyne/tachyne-common/attach"
+	tproto "github.com/tachyne/tachyne-common/protocol"
 )
 
 // Bedrock inventory rendering.
@@ -77,8 +79,38 @@ func stackNBT(st attach.ItemStack) map[string]any {
 	if nbt := bookNBT(st); nbt != nil {
 		return nbt
 	}
-	return mapItemNBT(st)
+	if nbt := mapItemNBT(st); nbt != nil {
+		return nbt
+	}
+	return dyedColorNBT(st)
 }
+
+// dyedColorNBT renders dyed leather (minecraft:dyed_color, which the world
+// emits as a stack's first component) as Bedrock's customColor tag, the
+// way Geyser's Item.translateDyedColor does.
+func dyedColorNBT(st attach.ItemStack) map[string]any {
+	if len(st.Components) == 0 {
+		return nil
+	}
+	r := bytes.NewReader(st.Components)
+	addC, err := tproto.ReadVarInt(r)
+	if err != nil || addC <= 0 {
+		return nil
+	}
+	if _, err := tproto.ReadVarInt(r); err != nil {
+		return nil
+	}
+	if id, err := tproto.ReadVarInt(r); err != nil || id != componentDyedColor {
+		return nil
+	}
+	rgb, err := tproto.ReadVarInt(r)
+	if err != nil {
+		return nil
+	}
+	return map[string]any{"customColor": rgb}
+}
+
+const componentDyedColor = 35 // minecraft:dyed_color, canonical
 
 // bedrockStack renders a domain item stack for the Bedrock client. An unknown
 // or unmapped item comes out empty rather than wrong: showing the WRONG item is

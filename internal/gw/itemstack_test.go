@@ -6,6 +6,7 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	attach "github.com/tachyne/tachyne-common/attach"
+	tproto "github.com/tachyne/tachyne-common/protocol"
 )
 
 // slotInfo builds the Bedrock side of a transfer.
@@ -259,5 +260,20 @@ func TestCursorItem(t *testing.T) {
 	w.setCursor(attach.ItemStack{ID: 3, Count: 1})
 	if j, ok := w.mapIn(protocol.ContainerCursor, 0); !ok || w.slots[j].Count != 1 {
 		t.Errorf("window cursor %+v", w.slots[w.cursor])
+	}
+}
+
+// A dyed leather chestplate carries Bedrock's customColor tag.
+func TestDyedLeatherCustomColor(t *testing.T) {
+	comps := tproto.AppendVarInt(nil, 1)
+	comps = tproto.AppendVarInt(comps, 0)
+	comps = tproto.AppendVarInt(comps, componentDyedColor)
+	comps = tproto.AppendVarInt(comps, 0xA06540)
+	nbt := stackNBT(attach.ItemStack{ID: 1, Count: 1, Components: comps})
+	if nbt == nil || nbt["customColor"] != int32(0xA06540) {
+		t.Fatalf("customColor NBT = %v", nbt)
+	}
+	if stackNBT(attach.ItemStack{ID: 1, Count: 1}) != nil {
+		t.Fatal("a plain stack has no NBT")
 	}
 }
