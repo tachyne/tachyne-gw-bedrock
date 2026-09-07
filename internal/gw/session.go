@@ -786,6 +786,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					if e.EID != welcome.EID {
 						send(&packet.MobEquipment{EntityRuntimeID: rt(e.EID), NewItem: bedrockStack(e.Slots[attach.EquipMainHand])})
+						// The off hand (a piglin's gold, a player's shield): Geyser's
+						// second MobEquipment with the off-hand container id.
+						send(&packet.MobEquipment{EntityRuntimeID: rt(e.EID), NewItem: bedrockStack(e.Slots[attach.EquipOffhand]),
+							InventorySlot: 0, HotBarSlot: 0xff, WindowID: protocol.ContainerOffhand})
 					}
 					send(&packet.MobArmourEquipment{
 						EntityRuntimeID: rt(e.EID),
