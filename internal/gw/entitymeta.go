@@ -173,6 +173,7 @@ type mobLook struct {
 	sheared, sitting, tamed, angry, powered, ignited, climbing, shaking bool
 	bribed                                                              bool // the killer bunny's Bedrock flag
 	dancing                                                             bool // the allay's jukebox dance
+	sniffing, digging                                                   bool // the sniffer's poses
 	hasColor                                                            bool
 	color                                                               byte
 	hasVariant, hasMark, hasTier, hasStrength                           bool
@@ -221,6 +222,8 @@ func (st *entState) applyMeta(entries []metaEntry) bool {
 			l.gliding = e.val == 1
 			l.sleeping = e.val == 2
 			l.swimming = e.val == 3
+			l.sniffing = e.val == 12 // Pose.SNIFFING (the same id on every served version)
+			l.digging = e.val == 14  // Pose.DIGGING
 		case e.idx == 16 && e.typ == metaTypeBool && st.ident != "minecraft:creeper": // ageable / zombie baby
 			l.baby = e.val != 0
 		default:
@@ -399,6 +402,8 @@ func actorData(eid int32, st *entState) *packet.SetActorData {
 	flag(l.sheared, protocol.EntityDataFlagSheared)
 	flag(l.sitting, protocol.EntityDataFlagSitting)
 	flag(l.dancing, protocol.EntityDataFlagDancing)
+	flag(l.sniffing, protocol.EntityDataFlagSniffing)
+	flag(l.digging, protocol.EntityDataFlagDigging)
 	flag(l.tamed, protocol.EntityDataFlagTamed)
 	flag(l.angry, protocol.EntityDataFlagAngry)
 	flag(l.powered, protocol.EntityDataFlagPowered)
