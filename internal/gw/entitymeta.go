@@ -172,6 +172,7 @@ type mobLook struct {
 	// Per-mob looks; which apply depends on the mob.
 	sheared, sitting, tamed, angry, powered, ignited, climbing, shaking bool
 	bribed                                                              bool // the killer bunny's Bedrock flag
+	dancing                                                             bool // the allay's jukebox dance
 	hasColor                                                            bool
 	color                                                               byte
 	hasVariant, hasMark, hasTier, hasStrength                           bool
@@ -237,6 +238,10 @@ func (st *entState) applyMobMeta(e metaEntry) {
 		if e.idx == 17 && e.typ == metaTypeByte { // fleece: colour bits + sheared 0x10
 			l.hasColor, l.color = true, byte(e.val&0x0f)
 			l.sheared = e.val&0x10 != 0
+		}
+	case "minecraft:allay":
+		if e.idx == 16 && e.typ == metaTypeBool { // DATA_DANCING
+			l.dancing = e.val != 0
 		}
 	case "minecraft:wolf", "minecraft:cat", "minecraft:parrot":
 		switch {
@@ -393,6 +398,7 @@ func actorData(eid int32, st *entState) *packet.SetActorData {
 	flag(l.baby, protocol.EntityDataFlagBaby)
 	flag(l.sheared, protocol.EntityDataFlagSheared)
 	flag(l.sitting, protocol.EntityDataFlagSitting)
+	flag(l.dancing, protocol.EntityDataFlagDancing)
 	flag(l.tamed, protocol.EntityDataFlagTamed)
 	flag(l.angry, protocol.EntityDataFlagAngry)
 	flag(l.powered, protocol.EntityDataFlagPowered)
