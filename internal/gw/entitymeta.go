@@ -292,6 +292,10 @@ func (st *entState) applyMobMeta(e metaEntry) {
 		if e.idx == 17 && e.typ == metaTypeVarInt { // fox red/snow, mooshroom red/brown: the same two numbers
 			l.hasVariant, l.variant = true, int32(clampIdx(e.val, 2))
 		}
+		if st.ident == "minecraft:fox" && e.idx == 18 && e.typ == metaTypeByte { // DATA_FLAGS: crouching 4, sleeping 32
+			l.sneaking = e.val&0x04 != 0
+			l.sleeping = e.val&0x20 != 0
+		}
 	case "minecraft:pig", "minecraft:cow", "minecraft:chicken":
 		// The 1.21.5 temperature variants (cold/temperate/warm holders at pig
 		// 18, cow 17, chicken 17) are Bedrock ENTITY PROPERTIES
