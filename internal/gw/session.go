@@ -484,6 +484,11 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					send(campfireData(e.X, e.Y, e.Z, e.Items))
 				}
+			case attach.MsgShelfItems:
+				var e attach.ShelfItems
+				if json.Unmarshal(payload, &e) == nil {
+					send(shelfData(e.X, e.Y, e.Z, e.Items))
+				}
 			case attach.MsgBlockEvent:
 				var e attach.BlockEvent
 				if json.Unmarshal(payload, &e) == nil && e.Action == 1 { // the bell's ring (the one block event the world sends)

@@ -19,6 +19,7 @@ import (
 const (
 	blockEntityBanner   = 20
 	blockEntityCampfire = 33
+	blockEntityShelf    = 40 // the 1.21.9 wooden shelves
 )
 
 // dyeIDs are Java's dye colour ids by name.
@@ -186,9 +187,46 @@ func chunkBlockEntities(h attach.ChunkHeader, body *attach.ChunkBody, banners ma
 				}
 			}
 			out = append(out, campfireData(x, y, z, items))
+		case blockEntityShelf:
+			var items [3]attach.ShelfItem
+			if list, ok := tag["Items"].([]any); ok {
+				for _, it := range list {
+					if im, ok := it.(map[string]any); ok {
+						slot, _ := im["Slot"].(byte)
+						id, _ := im["id"].(string)
+						count, _ := im["count"].(int32)
+						if slot < 3 {
+							items[slot] = attach.ShelfItem{Name: id, Count: count}
+						}
+					}
+				}
+			}
+			out = append(out, shelfData(x, y, z, items))
 		}
 	}
 	return out
+}
+
+// shelfData renders a wooden shelf's three display slots. Bedrock places
+// the items by list index, so the list is always three long with empty
+// items (Geyser's EMPTY_ITEM: no name, count 0) for the bare slots.
+func shelfData(x, y, z int32, items [3]attach.ShelfItem) *packet.BlockActorData {
+	list := make([]any, 3)
+	for i, it := range items {
+		if it.Name == "" || it.Count <= 0 {
+			list[i] = map[string]any{"Name": "", "Count": byte(0), "Damage": int16(0)}
+			continue
+		}
+		name := it.Name
+		if !strings.Contains(name, ":") {
+			name = "minecraft:" + name
+		}
+		list[i] = map[string]any{"Name": name, "Count": byte(it.Count), "Damage": int16(0)}
+	}
+	return &packet.BlockActorData{
+		Position: protocol.BlockPos{x, y, z},
+		NBTData:  map[string]any{"id": "Shelf", "x": x, "y": y, "z": z, "isMovable": byte(1), "Items": list},
+	}
 }
 
 // blockIndex is a block's index in the chunk body (sections bottom-up,
