@@ -494,6 +494,19 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					send(shelfData(e.X, e.Y, e.Z, e.Items))
 				}
+			case attach.MsgMovingPiston:
+				// Java animates the carried block through a moving_piston
+				// block entity; Bedrock's moving-block actor is a different
+				// machine, so the carried block is laid down at once — the
+				// world's final block set two ticks later matches it.
+				var e attach.MovingPiston
+				if json.Unmarshal(payload, &e) == nil {
+					send(&packet.UpdateBlock{
+						Position:          protocol.BlockPos{e.X, e.Y, e.Z},
+						NewBlockRuntimeID: bedrockBlockRID(e.State),
+						Flags:             packet.BlockUpdateNetwork,
+					})
+				}
 			case attach.MsgBlockEvent:
 				var e attach.BlockEvent
 				if json.Unmarshal(payload, &e) == nil && e.Action == 1 { // the bell's ring (the one block event the world sends)
