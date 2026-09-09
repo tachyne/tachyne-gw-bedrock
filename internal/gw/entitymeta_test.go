@@ -1,6 +1,7 @@
 package gw
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -234,4 +235,50 @@ func canonicalRegistryID(t *testing.T, regID, name string) int32 {
 	}
 	t.Fatalf("%s has no %s", regID, name)
 	return -1
+}
+
+// A pig's climate holder (registry order cold, temperate, warm) becomes the
+// Bedrock climate_variant property index (temperate, warm, cold) on the actor
+// data, and the type's property definition round-trips through the NBT
+// encoder.
+func TestClimateVariantProperty(t *testing.T) {
+	for _, c := range []struct {
+		ident     string
+		idx       byte
+		typ       int32
+		val, want int32
+	}{
+		{"minecraft:pig", 18, metaTypePigVariant, 0, 2}, // cold
+		{"minecraft:pig", 18, metaTypePigVariant, 1, 0}, // temperate
+		{"minecraft:cow", 17, metaTypeCowVariant, 2, 1}, // warm
+		{"minecraft:chicken", 17, metaTypeChickenVariant, 0, 2},
+	} {
+		meta := entry(c.idx, c.typ, tproto.AppendVarInt(nil, c.val)...)
+		meta = append(meta, 0xff)
+		st := &entState{ident: c.ident}
+		if !st.applyMeta(parseSimpleMeta(meta)) || !st.look.hasClimate || st.look.climate != c.want {
+			t.Errorf("%s holder %d: look %+v, want climate %d", c.ident, c.val, st.look, c.want)
+			continue
+		}
+		pd := actorData(7, st)
+		if len(pd.EntityProperties.IntegerProperties) != 1 || pd.EntityProperties.IntegerProperties[0].Value != c.want {
+			t.Errorf("%s: properties %+v", c.ident, pd.EntityProperties)
+		}
+	}
+	// A sheep carries no climate property.
+	st := &entState{ident: "minecraft:sheep"}
+	st.applyMeta(parseSimpleMeta(append(entry(17, metaTypeVarInt, 1), 0xff)))
+	if pd := actorData(8, st); len(pd.EntityProperties.IntegerProperties) != 0 {
+		t.Errorf("sheep carries properties %+v", pd.EntityProperties)
+	}
+	pk := climateProperty("minecraft:pig")
+	buf := new(bytes.Buffer)
+	w := protocol.NewWriter(buf, 0)
+	pk.Marshal(w)
+	if buf.Len() == 0 {
+		t.Fatal("empty SyncActorProperty")
+	}
+	if props := pk.PropertyData["properties"].([]map[string]any); props[0]["name"] != "minecraft:climate_variant" || props[0]["type"] != int32(3) {
+		t.Errorf("property definition %+v", props[0])
+	}
 }

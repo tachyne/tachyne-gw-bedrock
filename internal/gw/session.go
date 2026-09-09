@@ -190,6 +190,11 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 		// Self entity metadata: the client's OWN physics honors these flags —
 		// without has_gravity it glides at a fixed height and cannot jump.
 		&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: baseMetadata(0.6, 1.8)},
+		// Entity property definitions (the way Geyser syncs them right after
+		// StartGame): the farm animals' climate variant.
+		climateProperty("minecraft:pig"),
+		climateProperty("minecraft:cow"),
+		climateProperty("minecraft:chicken"),
 	); err != nil {
 		return fmt.Errorf("spawn packets: %w", err)
 	}
@@ -621,6 +626,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							}
 						}
 						ents[e.EID] = st
+						ad := actorData(e.EID, st)
 						send(&packet.AddActor{
 							EntityUniqueID:  int64(e.EID),
 							EntityRuntimeID: rt(e.EID),
@@ -628,7 +634,8 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 							Position:        st.pos,
 							Velocity:        mgl32.Vec3{float32(e.VX), float32(e.VY), float32(e.VZ)},
 							Pitch:           e.Pitch, Yaw: e.Yaw, HeadYaw: e.Yaw, BodyYaw: e.Yaw,
-							EntityMetadata: actorData(e.EID, st).EntityMetadata,
+							EntityMetadata:   ad.EntityMetadata,
+							EntityProperties: ad.EntityProperties,
 						})
 					}
 				}

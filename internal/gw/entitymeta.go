@@ -188,6 +188,8 @@ type mobLook struct {
 	nameVisible                                                         bool
 	hasFuse                                                             bool
 	fuse                                                                int32
+	hasClimate                                                          bool
+	climate                                                             int32 // Bedrock climate_variant index: 0 temperate, 1 warm, 2 cold
 }
 
 // villagerProfessionBedrock and villagerTypeBedrock renumber the canonical
@@ -298,10 +300,22 @@ func (st *entState) applyMobMeta(e metaEntry) {
 		}
 	case "minecraft:pig", "minecraft:cow", "minecraft:chicken":
 		// The 1.21.5 temperature variants (cold/temperate/warm holders at pig
-		// 18, cow 17, chicken 17) are Bedrock ENTITY PROPERTIES
-		// (minecraft:climate_variant), not actor data; the property sync is
-		// not rendered here yet, so the entry is read (the walk continues)
-		// and dropped.
+		// 18, cow 17, chicken 17) are the Bedrock ENTITY PROPERTY
+		// minecraft:climate_variant (defined per type by climateProperty
+		// after StartGame), carried on the actor as an int property rather
+		// than actor data. Registry order cold, temperate, warm → the
+		// property's enum order temperate, warm, cold.
+		idx, typ := byte(17), int32(metaTypeCowVariant)
+		switch st.ident {
+		case "minecraft:pig":
+			idx, typ = 18, metaTypePigVariant
+		case "minecraft:chicken":
+			typ = metaTypeChickenVariant
+		}
+		if e.idx == idx && e.typ == typ {
+			l.hasClimate = true
+			l.climate = [...]int32{2, 0, 1}[clampIdx(e.val, 3)]
+		}
 	case "minecraft:bee":
 		switch {
 		case e.idx == 17 && e.typ == metaTypeByte: // stung: Bedrock's mark variant
@@ -463,7 +477,11 @@ func actorData(eid int32, st *entState) *packet.SetActorData {
 	if l.hasFuse {
 		m[protocol.EntityDataKeyFuseTime] = l.fuse
 	}
-	return &packet.SetActorData{EntityRuntimeID: rt(eid), EntityMetadata: m}
+	pd := &packet.SetActorData{EntityRuntimeID: rt(eid), EntityMetadata: m}
+	if l.hasClimate {
+		pd.EntityProperties.IntegerProperties = []protocol.IntegerEntityProperty{{Index: 0, Value: l.climate}}
+	}
+	return pd
 }
 
 // setActorFlag sets one actor flag: the first 64 live in the flags word,
