@@ -280,6 +280,21 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		links := map[int32]int32{}            // rider → vehicle (actor links)
 		banners := map[[3]int32]int32{}       // banner base colours by position (Bedrock keeps them on the block entity)
 		adv := newAdvBook()                   // advancement progress, for the toast
+		// Bedrock reads health off attributes with an explicit max: the world's
+		// MAX_HEALTH (a health boost, a plugin) arrives on the attributes frame
+		// and the last health frame is replayed against it.
+		var curHealth, curFood, curSat float32 = 20, 20, 5
+		var maxHealth float32 = 20
+		sendHealthAttrs := func() {
+			send(&packet.UpdateAttributes{
+				EntityRuntimeID: rt(welcome.EID),
+				Attributes: []protocol.Attribute{
+					{AttributeValue: protocol.AttributeValue{Name: "minecraft:health", Value: curHealth, Max: maxHealth}, DefaultMax: 20, Default: 20},
+					{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.hunger", Value: curFood, Max: 20}, DefaultMax: 20, Default: 20},
+					{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.saturation", Value: curSat, Max: 20}, DefaultMax: 20, Default: 20},
+				},
+			})
+		}
 		for {
 			typ, payload, err := attach.ReadFrame(b.Get())
 			if err != nil {
@@ -313,14 +328,24 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				// attributes; until this the client sat at a static 20.
 				var e attach.Health
 				if json.Unmarshal(payload, &e) == nil {
-					send(&packet.UpdateAttributes{
-						EntityRuntimeID: rt(welcome.EID),
-						Attributes: []protocol.Attribute{
-							{AttributeValue: protocol.AttributeValue{Name: "minecraft:health", Value: e.Health, Max: 20}, DefaultMax: 20, Default: 20},
-							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.hunger", Value: float32(e.Food), Max: 20}, DefaultMax: 20, Default: 20},
-							{AttributeValue: protocol.AttributeValue{Name: "minecraft:player.saturation", Value: e.Saturation, Max: 20}, DefaultMax: 20, Default: 20},
-						},
-					})
+					curHealth, curFood, curSat = e.Health, float32(e.Food), e.Saturation
+					sendHealthAttrs()
+				}
+			case attach.MsgEntityAttributes:
+				// update_attributes → UpdateAttributes: the values Bedrock's own
+				// physics reads (movement, a mount's jump strength) for whichever
+				// entity they belong to, and the local player's max health.
+				var e attach.EntityAttributes
+				if json.Unmarshal(payload, &e) == nil {
+					if e.EID == welcome.EID {
+						if v, ok := attributeValue(e, "minecraft:max_health"); ok {
+							maxHealth = float32(v)
+							sendHealthAttrs()
+						}
+					}
+					if attrs := bedrockAttributes(e); len(attrs) > 0 {
+						send(&packet.UpdateAttributes{EntityRuntimeID: rt(e.EID), Attributes: attrs})
+					}
 				}
 			case attach.MsgDeath:
 				// The death screen: Bedrock shows it off the health attribute
