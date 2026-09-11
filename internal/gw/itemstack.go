@@ -58,7 +58,11 @@ type invMirror struct {
 	beacon      bool                                     // a beacon
 	lecternBook bool                                     // a lectern (the book rides the block entity)
 	lecternPage int32
-	at          [3]int32 // the block the window sits at
+	at          [3]int32  // the block the window sits at
+	tail        []winSlot // container slots Java numbers after the inventory (the crafter's result)
+	// The crafter's disabled-slot mask and trigger, rebuilt from container properties.
+	crafterMask      int16
+	crafterTriggered bool
 	// beaconPrimary/Secondary are the beacon's chosen effects (Bedrock's numbering).
 	beaconPrimary, beaconSecondary int32
 }

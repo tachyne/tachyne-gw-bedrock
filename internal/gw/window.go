@@ -119,6 +119,7 @@ var menuWindows = map[int32]menuWindow{
 	4:  {chestLayout(45), protocol.ContainerTypeContainer},     // generic_9x5
 	5:  {chestLayout(54), protocol.ContainerTypeContainer},     // generic_9x6
 	6:  {chestLayout(9), protocol.ContainerTypeDispenser},      // generic_3x3 (dispenser/dropper)
+	7:  {crafterLayout, protocol.ContainerTypeCrafter},         // crafter_3x3
 	8:  {anvilLayout, protocol.ContainerTypeAnvil},             // anvil
 	9:  {beaconLayout, protocol.ContainerTypeBeacon},           // beacon
 	10: {furnaceLayout, protocol.ContainerTypeBlastFurnace},    // blast_furnace
@@ -162,6 +163,9 @@ func (w *winState) open(id int32, layout []winSlot, ctype byte, title string) *i
 	w.mirror.beacon = ctype == protocol.ContainerTypeBeacon
 	w.mirror.lecternBook = ctype == protocol.ContainerTypeLectern
 	w.mirror.at = w.lastUse
+	if ctype == protocol.ContainerTypeCrafter {
+		w.mirror.setTail(crafterTail)
+	}
 	for i := range w.mirror.ench {
 		w.mirror.ench[i] = enchantRow{bedrock: -1, level: -1}
 	}
@@ -255,10 +259,24 @@ func sendWindowItems(w packetWriter, m *invMirror, slots []attach.ItemStack) {
 		})
 	}
 	sendPlayerInventory(w, m.playerView())
+	for j := range m.tail { // the slots after the inventory go one by one
+		if slot := len(m.layout) + 36 + j; slot < len(slots) {
+			sendWindowSlot(w, m, int32(slot), slots[slot])
+		}
+	}
 }
 
 // sendWindowSlot renders one changed slot of a container window.
 func sendWindowSlot(w packetWriter, m *invMirror, slot int32, st attach.ItemStack) {
+	if ws, ok := m.tailSlot(slot); ok { // a container slot past the inventory (the crafter's result)
+		w.WritePacket(&packet.InventorySlot{
+			WindowID:  uint32(m.window),
+			Slot:      ws.idx,
+			NewItem:   bedrockStack(st),
+			Container: protocol.Option(fullContainer(ws.container)),
+		})
+		return
+	}
 	if int(slot) < len(m.layout) {
 		ws := m.layout[slot]
 		win := uint32(m.window)
@@ -297,6 +315,11 @@ func windowData(w packetWriter, m *invMirror, ctype byte, prop, value int32) {
 		return
 	case protocol.ContainerTypeBeacon:
 		if pk := m.beaconProp(prop, value); pk != nil {
+			w.WritePacket(pk)
+		}
+		return
+	case protocol.ContainerTypeCrafter:
+		if pk := m.crafterProp(prop, value); pk != nil {
 			w.WritePacket(pk)
 		}
 		return

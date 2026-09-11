@@ -1113,6 +1113,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					}
 					respondStackRequest(c, req.RequestID, m, changed, ok)
 				}
+			case *packet.PlayerToggleCrafterSlotRequest:
+				if _, ctype := win.currentType(); ctype == protocol.ContainerTypeCrafter {
+					b.Write(attach.MsgSlotState, crafterToggle(p))
+				}
 			case *packet.PlayerAction:
 				if p.ActionType == protocol.PlayerActionDimensionChangeDone {
 					// The screen is gone: pin the client where the world put it

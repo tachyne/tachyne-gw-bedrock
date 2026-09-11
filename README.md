@@ -169,8 +169,7 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   keeps them and the burn/cook/brew bars as container data; clicks reach
   the world through the per-window slot map).
 - NOT YET: the Java advancements screen (Bedrock has no tree to show;
-  completions toast and are announced in chat), the crafter (closed
-  straight back so the world does not wait on it), taking a book off a
+  completions toast and are announced in chat), taking a book off a
   lectern from its screen (walk up and break it, or use Java), the particles
   Geyser's table has no Bedrock name for, Java players' skins (the world
   runs without Mojang profiles, so Java players stay grey on Bedrock).

@@ -106,3 +106,63 @@ func TestFixedSlotWindows(t *testing.T) {
 		t.Errorf("data %+v", d)
 	}
 }
+
+// The crafter window keeps its grid in the window container, the player's
+// inventory next, and the result preview as a tail slot (Java 45) at the
+// crafter container's slot 50; its container properties become the block
+// entity's disabled-slot mask; a Bedrock toggle becomes the world's
+// SlotState.
+func TestCrafterWindow(t *testing.T) {
+	mw, ok := menuWindows[7]
+	if !ok || mw.ctype != protocol.ContainerTypeCrafter || len(mw.layout) != 9 {
+		t.Fatalf("crafter menu %+v %v", mw, ok)
+	}
+	m := newWindowMirror(6, mw.layout)
+	m.setTail(crafterTail)
+	if m.cursor != 46 || len(m.slots) != 47 {
+		t.Fatalf("cursor %d slots %d", m.cursor, len(m.slots))
+	}
+	if c, idx, ok := m.mapOut(45); !ok || c != protocol.ContainerCrafterLevelEntity || idx != craftOutputSlot {
+		t.Errorf("result maps to (%d,%d,%v)", c, idx, ok)
+	}
+	if j, ok := m.mapIn(protocol.ContainerHotBar, 0); !ok || j != 36 {
+		t.Errorf("hotbar 0 → %d %v", j, ok)
+	}
+	if j, ok := m.mapIn(protocol.ContainerInventory, 9); !ok || j != 9 {
+		t.Errorf("main 0 → %d %v", j, ok)
+	}
+	if j, ok := m.mapIn(protocol.ContainerLevelEntity, 4); !ok || j != 4 {
+		t.Errorf("grid 4 → %d %v", j, ok)
+	}
+	if j, ok := m.mapIn(protocol.ContainerCursor, 0); !ok || j != 46 {
+		t.Errorf("cursor → %d %v", j, ok)
+	}
+	slots := make([]attach.ItemStack, 46)
+	slots[45] = attach.ItemStack{ID: 7, Count: 1}
+	m.setAll(slots, attach.ItemStack{ID: 9, Count: 2})
+	if m.slots[45].ID != 7 || m.slots[46].ID != 9 {
+		t.Errorf("setAll: result %+v cursor %+v", m.slots[45], m.slots[46])
+	}
+	m.at = [3]int32{1, 2, 3}
+	if pk := m.crafterProp(3, 1); pk == nil || pk.NBTData["disabled_slots"] != int16(8) || pk.NBTData["crafting_ticks_remaining"] != int32(0) {
+		t.Errorf("prop 3 on: %+v", pk)
+	}
+	if pk := m.crafterProp(0, 1); pk.NBTData["disabled_slots"] != int16(9) {
+		t.Errorf("prop 0 on: %+v", pk.NBTData)
+	}
+	if pk := m.crafterProp(3, 0); pk.NBTData["disabled_slots"] != int16(1) {
+		t.Errorf("prop 3 off: %+v", pk.NBTData)
+	}
+	if pk := m.crafterProp(9, 1); pk.NBTData["crafting_ticks_remaining"] != int32(10000) || pk.Position != (protocol.BlockPos{1, 2, 3}) {
+		t.Errorf("triggered: %+v", pk)
+	}
+	if pk := m.crafterProp(12, 1); pk != nil {
+		t.Error("an unknown property sends nothing")
+	}
+	if s := crafterToggle(&packet.PlayerToggleCrafterSlotRequest{Slot: 4, Disabled: true}); s.Slot != 4 || s.State {
+		t.Errorf("toggle → %+v", s)
+	}
+	if s := crafterToggle(&packet.PlayerToggleCrafterSlotRequest{Slot: 2, Disabled: false}); !s.State {
+		t.Errorf("toggle on → %+v", s)
+	}
+}
