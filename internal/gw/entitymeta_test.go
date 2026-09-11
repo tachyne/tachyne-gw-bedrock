@@ -296,3 +296,29 @@ func TestDeathMetadata(t *testing.T) {
 		t.Errorf("no death: %+v", n)
 	}
 }
+
+// A panda's two gene bytes resolve to Bedrock's variant: the main gene
+// unless it is recessive and unmatched.
+func TestPandaGeneVariant(t *testing.T) {
+	st := &entState{ident: "minecraft:panda"}
+	meta := append(entry(20, metaTypeByte, 4), entry(21, metaTypeByte, 1)...) // brown over lazy
+	meta = append(meta, 0xff)
+	st.applyMeta(parseSimpleMeta(meta))
+	if !st.look.hasVariant || st.look.variant != 0 {
+		t.Errorf("unmatched brown shows normal, got %+v", st.look)
+	}
+	meta = append(entry(20, metaTypeByte, 4), entry(21, metaTypeByte, 4)...)
+	meta = append(meta, 0xff)
+	st2 := &entState{ident: "minecraft:panda"}
+	st2.applyMeta(parseSimpleMeta(meta))
+	if st2.look.variant != 4 {
+		t.Errorf("matched brown shows brown, got %d", st2.look.variant)
+	}
+	meta = append(entry(20, metaTypeByte, 6), entry(21, metaTypeByte, 4)...)
+	meta = append(meta, 0xff)
+	st3 := &entState{ident: "minecraft:panda"}
+	st3.applyMeta(parseSimpleMeta(meta))
+	if st3.look.variant != 6 {
+		t.Errorf("a dominant gene shows itself, got %d", st3.look.variant)
+	}
+}

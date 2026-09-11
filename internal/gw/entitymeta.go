@@ -189,6 +189,8 @@ type mobLook struct {
 	hasFuse                                                             bool
 	fuse                                                                int32
 	hasClimate                                                          bool
+	hasPandaMain                                                        bool
+	pandaMain, pandaHidden                                              int32
 	climate                                                             int32 // Bedrock climate_variant index: 0 temperate, 1 warm, 2 cold
 }
 
@@ -297,6 +299,24 @@ func (st *entState) applyMobMeta(e metaEntry) {
 		if st.ident == "minecraft:fox" && e.idx == 18 && e.typ == metaTypeByte { // DATA_FLAGS: crouching 4, sleeping 32
 			l.sneaking = e.val&0x04 != 0
 			l.sleeping = e.val&0x20 != 0
+		}
+	case "minecraft:panda":
+		// MAIN_GENE (20) / HIDDEN_GENE (21) bytes → Bedrock's VARIANT is the
+		// trait the pair resolves to (Geyser PandaEntity.updateAppearance):
+		// a recessive main gene (brown 4, weak 5) shows only when the hidden
+		// gene matches, else normal.
+		switch {
+		case e.idx == 20 && e.typ == metaTypeByte:
+			l.pandaMain, l.hasPandaMain = int32(e.val), true
+		case e.idx == 21 && e.typ == metaTypeByte:
+			l.pandaHidden = int32(e.val)
+		}
+		if l.hasPandaMain {
+			trait := l.pandaMain
+			if (trait == 4 || trait == 5) && l.pandaHidden != trait {
+				trait = 0
+			}
+			l.hasVariant, l.variant = true, trait
 		}
 	case "minecraft:pig", "minecraft:cow", "minecraft:chicken":
 		// The 1.21.5 temperature variants (cold/temperate/warm holders at pig
