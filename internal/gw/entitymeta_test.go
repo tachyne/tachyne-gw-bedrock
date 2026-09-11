@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"github.com/tachyne/tachyne-common/attach"
 	tproto "github.com/tachyne/tachyne-common/protocol"
 )
 
@@ -280,5 +281,18 @@ func TestClimateVariantProperty(t *testing.T) {
 	}
 	if props := pk.PropertyData["properties"].([]map[string]any); props[0]["name"] != "minecraft:climate_variant" || props[0]["type"] != int32(3) {
 		t.Errorf("property definition %+v", props[0])
+	}
+}
+
+// The last death location rides the player's actor data the way Geyser
+// sets it: the block, the dimension and the has-died flag.
+func TestDeathMetadata(t *testing.T) {
+	m := deathMetadata(&attach.DeathPos{Dim: 2, X: 5, Y: 70, Z: -9})
+	if m[protocol.EntityDataKeyPlayerLastDeathPosition] != (protocol.BlockPos{5, 70, -9}) ||
+		m[protocol.EntityDataKeyPlayerLastDeathDimension] != int32(2) || m[protocol.EntityDataKeyPlayerHasDied] != byte(1) {
+		t.Errorf("death metadata %+v", m)
+	}
+	if n := deathMetadata(nil); n[protocol.EntityDataKeyPlayerHasDied] != byte(0) {
+		t.Errorf("no death: %+v", n)
 	}
 }

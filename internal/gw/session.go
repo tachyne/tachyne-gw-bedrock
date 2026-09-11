@@ -198,6 +198,9 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 	); err != nil {
 		return fmt.Errorf("spawn packets: %w", err)
 	}
+	if welcome.Death != nil { // where the player last died, for the recovery compass
+		c.WritePacket(&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: deathMetadata(welcome.Death)})
+	}
 
 	log.Printf("%s: %q spawned (%.1f,%.1f,%.1f)", c.RemoteAddr(), name, spawn.X, spawn.Y, spawn.Z)
 	return s.play(c, w, name, uuidStr, roles, welcome)
@@ -919,6 +922,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				// discards the entity world on a respawn, so the rendered
 				// entities go too — the world re-adds the new dimension's.
 				var e attach.Dimension
+				if json.Unmarshal(payload, &e) == nil && e.Death != nil {
+					send(&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: deathMetadata(e.Death)})
+				}
 				if json.Unmarshal(payload, &e) == nil && e.Dim != curDim.Load() {
 					curDim.Store(e.Dim)
 					for eid := range ents {
