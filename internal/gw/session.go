@@ -13,6 +13,7 @@ import (
 	"net"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	_ "embed"
 
@@ -284,6 +285,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		// MAX_HEALTH (a health boost, a plugin) arrives on the attributes frame
 		// and the last health frame is replayed against it.
 		var curHealth, curFood, curSat float32 = 20, 20, 5
+		var cracks blockCrackTracker
 		var maxHealth float32 = 20
 		sendHealthAttrs := func() {
 			send(&packet.UpdateAttributes{
@@ -330,6 +332,15 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					curHealth, curFood, curSat = e.Health, float32(e.Food), e.Saturation
 					sendHealthAttrs()
+				}
+			case attach.MsgBlockBreakProgress:
+				// block_destruction → level event 3600/3602/3601: Bedrock
+				// animates the crack from a total time, estimated per stage.
+				var e attach.BlockBreakProgress
+				if json.Unmarshal(payload, &e) == nil && e.EID != welcome.EID {
+					if pk := cracks.packet(e, time.Now().UnixMilli()/50); pk != nil {
+						send(pk)
+					}
 				}
 			case attach.MsgEntityAttributes:
 				// update_attributes → UpdateAttributes: the values Bedrock's own

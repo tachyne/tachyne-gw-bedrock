@@ -94,7 +94,9 @@ go run ./cmd/bedrockprobe -addr 127.0.0.1:19132 -name probe1 -t 10s
   InventoryTransaction + PlayerAuthInput BlockActions); health, hunger,
   saturation and XP relayed as attribute updates; the death screen and
   the respawn button (Respawn packets both ways); hurt flashes and death
-  animations as actor events; dropped items as item actors carrying their
+  animations as actor events; another breaker's crack overlay (a zombie on
+  a door) as block-cracking level events, re-timed per stage as Geyser does;
+  dropped items as item actors carrying their
   stack; the common sounds (mob voices, hits, chests, doors, explosions…)
   as level sound events; what entities hold and wear (mob equipment and
   armour packets); mob looks from metadata (burning, sneaking, sprinting,
