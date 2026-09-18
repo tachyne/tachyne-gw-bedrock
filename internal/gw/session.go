@@ -333,6 +333,15 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					curHealth, curFood, curSat = e.Health, float32(e.Food), e.Saturation
 					sendHealthAttrs()
 				}
+			case attach.MsgWindowCloseServer:
+				// container_close from the server → ContainerClose with ServerSide
+				// set, so the client accepts the forced close.
+				var e attach.WindowCloseServer
+				if json.Unmarshal(payload, &e) == nil {
+					if id, ctype, was := win.close(); was && id == e.ID {
+						send(&packet.ContainerClose{WindowID: byte(id), ContainerType: ctype, ServerSide: true})
+					}
+				}
 			case attach.MsgItemCooldown:
 				// cooldown → ClientStartItemCooldown: Bedrock's category is
 				// the bare vanilla name for the groups it animates (goat_horn,
