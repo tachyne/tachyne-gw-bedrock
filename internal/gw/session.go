@@ -333,6 +333,15 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					curHealth, curFood, curSat = e.Health, float32(e.Food), e.Saturation
 					sendHealthAttrs()
 				}
+			case attach.MsgItemCooldown:
+				// cooldown → ClientStartItemCooldown: Bedrock's category is
+				// the bare vanilla name for the groups it animates (goat_horn,
+				// shield, ender_pearl); anything else is passed as-is and
+				// simply does not draw (the world still refuses the use).
+				var e attach.ItemCooldown
+				if json.Unmarshal(payload, &e) == nil {
+					send(&packet.ClientStartItemCooldown{Category: strings.TrimPrefix(e.Group, "minecraft:"), Duration: e.Ticks})
+				}
 			case attach.MsgBlockBreakProgress:
 				// block_destruction → level event 3600/3602/3601: Bedrock
 				// animates the crack from a total time, estimated per stage.
