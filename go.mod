@@ -7,7 +7,7 @@ require (
 	github.com/go-gl/mathgl v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/sandertv/gophertunnel v1.57.1
-	github.com/tachyne/tachyne-common v0.1.1-0.20260920123138-2c8dc11598ea
+	github.com/tachyne/tachyne-common v0.1.1-0.20260920130318-951d2f5e931a
 )
 
 require (
