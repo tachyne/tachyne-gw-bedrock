@@ -34,7 +34,7 @@ func effectPacket(e attach.Effect) *packet.MobEffect {
 		return nil
 	}
 	pk := &packet.MobEffect{EntityRuntimeID: rt(e.EID), Operation: packet.MobEffectAdd, EffectType: bedrockEffects[e.ID],
-		Amplifier: e.Amp, Particles: true, Duration: e.Ticks}
+		Amplifier: e.Amp, Particles: !e.NoParticles, Duration: e.Ticks}
 	if e.Remove {
 		pk.Operation = packet.MobEffectRemove
 	}
