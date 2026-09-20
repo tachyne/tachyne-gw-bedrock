@@ -94,6 +94,8 @@ github.com/tachyne/tachyne-common v0.1.1-0.20260919124338-03abe5187270 h1:q+Ss6Z
 github.com/tachyne/tachyne-common v0.1.1-0.20260919124338-03abe5187270/go.mod h1:0fDSCW2H9ZkF560RmWM3DFEPmW0PCdlvWdmxVVaINXU=
 github.com/tachyne/tachyne-common v0.1.1-0.20260920071907-54551d235919 h1:G8bQFKURx+z7qfgcQdBohSlMNDBEbLw9RfO4y85c3JA=
 github.com/tachyne/tachyne-common v0.1.1-0.20260920071907-54551d235919/go.mod h1:0fDSCW2H9ZkF560RmWM3DFEPmW0PCdlvWdmxVVaINXU=
+github.com/tachyne/tachyne-common v0.1.1-0.20260920114516-560ca532d43c h1:dlNNJwsRRgQMJa7kN1u5QbHAzQP6SW6AhrYeApmi36k=
+github.com/tachyne/tachyne-common v0.1.1-0.20260920114516-560ca532d43c/go.mod h1:0fDSCW2H9ZkF560RmWM3DFEPmW0PCdlvWdmxVVaINXU=
 github.com/wlynxg/anet v0.0.5 h1:J3VJGi1gvo0JwZ/P1/Yc/8p63SoW98B5dHkYDmpgvvU=
 github.com/wlynxg/anet v0.0.5/go.mod h1:eay5PRQr7fIVAMbTbchTnO9gG65Hg/uYGdc7mguHxoA=
 golang.org/x/crypto v0.48.0 h1:/VRzVqiRSggnhY7gNRxPauEQ5Drw9haKdM0jqfcCFts=
