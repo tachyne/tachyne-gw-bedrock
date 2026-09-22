@@ -14,6 +14,7 @@ import (
 	"net"
 
 	"github.com/tachyne/tachyne-common/access"
+	"github.com/tachyne/tachyne-common/attach"
 
 	"github.com/sandertv/gophertunnel/minecraft"
 	gtprotocol "github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -45,7 +46,8 @@ func (s *Server) Run(ctx context.Context) error {
 	cfg := minecraft.ListenConfig{
 		ErrorLog:               slog.Default(),
 		AuthenticationDisabled: s.AuthDisabled,
-		StatusProvider:         minecraft.NewStatusProvider(s.MOTD, "tachyne"),
+		StatusProvider: worldStatus{motd: s.MOTD, world: &attach.StatusCache{
+			Backend: s.Backend, Token: s.AttachToken, Gateway: "gw-bedrock"}},
 	}
 	ln, err := cfg.Listen("raknet", s.Listen)
 	if err != nil {
