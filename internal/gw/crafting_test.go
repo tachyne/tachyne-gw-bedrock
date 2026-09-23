@@ -33,7 +33,17 @@ func TestCraftingBridge(t *testing.T) {
 		Shaped:    []attach.ShapedRecipe{{ID: 0, W: 1, H: 2, Cells: []int32{plank, plank}, Result: stick, Count: 4}},
 		Shapeless: []attach.ShapelessRecipe{{ID: 1, Ingredients: []int32{plank}, Result: stick, Count: 1}}})
 	pk := rs.packet()
-	if !pk.ClearRecipes || len(pk.ShapedRecipes) != 1 || len(pk.ShapelessRecipes) != 1+len(tproto.StonecuttingRecipes) ||
+	// The stonecutter's recipes ride along, less those naming an item Bedrock
+	// cannot show (26.3's new items, until Geyser maps them).
+	stonecut := 0
+	for _, r := range tproto.StonecuttingRecipes {
+		_, ok := bedrockStackOf(attach.ItemStack{ID: r.Out, Count: int32(r.Count)})
+		_, ok2 := descriptor(r.In)
+		if ok && ok2 {
+			stonecut++
+		}
+	}
+	if stonecut == 0 || !pk.ClearRecipes || len(pk.ShapedRecipes) != 1 || len(pk.ShapelessRecipes) != 1+stonecut ||
 		len(pk.SmithingTransformRecipes) != len(smithingRecipes()) || len(pk.SmithingTrimRecipes) != 1 { // the book, the stonecutter's, the smithing upgrades and trim
 		t.Fatalf("crafting data: %d shaped, %d shapeless, %d transform, %d trim",
 			len(pk.ShapedRecipes), len(pk.ShapelessRecipes), len(pk.SmithingTransformRecipes), len(pk.SmithingTrimRecipes))
