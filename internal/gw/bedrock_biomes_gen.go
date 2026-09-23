@@ -14,6 +14,7 @@ var bedrockBiomeIDs = map[string]uint32{
 	"minecraft:cherry_grove":             192,
 	"minecraft:cold_ocean":               44,
 	"minecraft:crimson_forest":           179,
+	"minecraft:dappled_forest":           4,
 	"minecraft:dark_forest":              29,
 	"minecraft:deep_cold_ocean":          45,
 	"minecraft:deep_dark":                190,
