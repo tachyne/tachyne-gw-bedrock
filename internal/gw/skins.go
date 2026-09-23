@@ -2,6 +2,9 @@ package gw
 
 import (
 	"encoding/base64"
+	"image/color"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -53,9 +56,10 @@ func skinFromClientData(d login.ClientData) protocol.Skin {
 		PersonaCapeOnClassicSkin:  d.CapeOnClassicSkin,
 		CapeID:                    d.CapeID,
 		FullID:                    d.SkinID,
-		SkinColour:                d.SkinColour,
-		ArmSize:                   d.ArmSize,
+		SkinColour:                skinColour(d.SkinColour),
+		ArmSize:                   armSize(d.ArmSize),
 		Trusted:                   true,
+		ProfileHash:               d.ProfileHash,
 	}
 	for _, a := range d.AnimatedImageData {
 		sk.Animations = append(sk.Animations, protocol.SkinAnimation{
@@ -65,15 +69,80 @@ func skinFromClientData(d login.ClientData) protocol.Skin {
 	}
 	for _, p := range d.PersonaPieces {
 		sk.PersonaPieces = append(sk.PersonaPieces, protocol.PersonaPiece{
-			PieceID: p.PieceID, PieceType: p.PieceType, PackID: p.PackID, Default: p.Default, ProductID: p.ProductID,
+			PieceID: p.PieceID, PieceType: pieceType(p.PieceType), PackID: uuid.MustParse(orNil(p.PackID)), Default: p.Default, ProductID: p.ProductID,
 		})
 	}
 	for _, t := range d.PieceTintColours {
-		sk.PieceTintColours = append(sk.PieceTintColours, protocol.PersonaPieceTintColour{PieceType: t.PieceType, Colours: t.Colours[:]})
+		tint := protocol.PersonaPieceTintColour{PieceType: t.PieceType}
+		for i, c := range t.Colours {
+			tint.Colours[i] = skinColour(c)
+		}
+		sk.PieceTintColours = append(sk.PieceTintColours, tint)
 	}
 	if len(sk.SkinData) == 0 || sk.SkinImageWidth == 0 || sk.SkinImageHeight == 0 ||
 		int(sk.SkinImageWidth*sk.SkinImageHeight*4) != len(sk.SkinData) {
 		return defaultSkin() // a skin the client did not send whole
 	}
 	return sk
+}
+
+// Since 1.26.40 the skin's arm size, colours and persona piece types travel
+// typed, while the login still carries the strings: these read them the way
+// the protocol's own tint-colour mapping does.
+
+// armSize reads the login's "wide"/"slim".
+func armSize(s string) uint8 {
+	if s == "slim" {
+		return protocol.ArmSizeSlim
+	}
+	return protocol.ArmSizeWide
+}
+
+// skinColour reads a login colour: "#rrggbb", or "#aarrggbb" as the tints
+// send them. Anything unreadable is opaque black rather than a failed skin.
+func skinColour(s string) color.RGBA {
+	h := strings.TrimPrefix(s, "#")
+	v, err := strconv.ParseUint(h, 16, 32)
+	if err != nil {
+		return color.RGBA{A: 0xff}
+	}
+	c := color.RGBA{R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v), A: 0xff}
+	if len(h) == 8 {
+		c.A = uint8(v >> 24)
+	}
+	return c
+}
+
+// personaPieceTypes is the wire enum's order (protocol.PieceType*), by the
+// name the login uses without its "persona_" prefix.
+var personaPieceTypes = func() map[string]uint32 {
+	names := []string{"skeleton", "body", "skin", "bottom", "feet", "dress", "top", "high_pants", "hands",
+		"outerwear", "facial_hair", "mouth", "eyes", "hair", "hood", "back", "face_accessory", "head", "legs",
+		"left_leg", "right_leg", "arms", "left_arm", "right_arm", "capes", "classic_skin", "emote"}
+	m := make(map[string]uint32, len(names))
+	for i, n := range names {
+		m[n] = uint32(protocol.PieceTypeSkeleton + i)
+	}
+	return m
+}()
+
+// pieceType reads a login piece type ("persona_hair"; the hands are
+// "persona_hand", as the protocol's tint mapping has it).
+func pieceType(s string) uint32 {
+	n := strings.TrimPrefix(s, "persona_")
+	if n == "hand" {
+		n = "hands"
+	}
+	if t, ok := personaPieceTypes[n]; ok {
+		return t
+	}
+	return protocol.PieceTypeUnknown
+}
+
+// orNil is a pack id that parses: the login's, or the nil UUID.
+func orNil(s string) string {
+	if _, err := uuid.Parse(s); err != nil {
+		return uuid.Nil.String()
+	}
+	return s
 }

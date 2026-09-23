@@ -151,7 +151,7 @@ func defaultSkin() protocol.Skin {
 		SkinImageWidth:    64,
 		SkinImageHeight:   64,
 		SkinData:          data,
-		ArmSize:           "wide",
+		ArmSize:           protocol.ArmSizeWide,
 		Trusted:           true,
 	}
 }

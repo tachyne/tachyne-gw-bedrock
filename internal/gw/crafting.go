@@ -88,6 +88,7 @@ func (r *recipeSet) packet() *packet.CraftingData {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	pk := &packet.CraftingData{ClearRecipes: true}
+	alwaysUnlocked := protocol.Option(protocol.RecipeUnlockRequirement{Context: protocol.RecipeUnlockContextAlwaysUnlocked})
 	for _, s := range r.shaped {
 		out, ok := bedrockStackOf(attach.ItemStack{ID: s.Result, Count: s.Count})
 		if !ok {
@@ -103,11 +104,11 @@ func (r *recipeSet) packet() *packet.CraftingData {
 		if !usable {
 			continue
 		}
-		pk.Recipes = append(pk.Recipes, &protocol.ShapedRecipe{
+		pk.ShapedRecipes = append(pk.ShapedRecipes, protocol.ShapedRecipe{
 			RecipeID: fmt.Sprintf("tachyne:%d", s.ID), Width: s.W, Height: s.H,
 			Input: in, Output: []protocol.ItemStack{out}, UUID: recipeUUID(s.ID),
 			Block: "crafting_table", AssumeSymmetry: true,
-			UnlockRequirement: protocol.RecipeUnlockRequirement{Context: protocol.RecipeUnlockContextAlwaysUnlocked},
+			UnlockRequirement: alwaysUnlocked,
 			RecipeNetworkID:   networkID(s.ID),
 		})
 	}
@@ -126,27 +127,27 @@ func (r *recipeSet) packet() *packet.CraftingData {
 		if !usable {
 			continue
 		}
-		pk.Recipes = append(pk.Recipes, &protocol.ShapelessRecipe{
+		pk.ShapelessRecipes = append(pk.ShapelessRecipes, protocol.ShapelessRecipe{
 			RecipeID: fmt.Sprintf("tachyne:%d", s.ID),
 			Input:    in, Output: []protocol.ItemStack{out}, UUID: recipeUUID(s.ID),
 			Block:             "crafting_table",
-			UnlockRequirement: protocol.RecipeUnlockRequirement{Context: protocol.RecipeUnlockContextAlwaysUnlocked},
+			UnlockRequirement: alwaysUnlocked,
 			RecipeNetworkID:   networkID(s.ID),
 		})
 	}
-	pk.Recipes = append(pk.Recipes, smithingRecipes()...)
-	pk.Recipes = append(pk.Recipes, trimRecipe())
+	pk.SmithingTransformRecipes = smithingRecipes()
+	pk.SmithingTrimRecipes = []protocol.SmithingTrimRecipe{trimRecipe()}
 	for i, r := range tproto.StonecuttingRecipes { // the stonecutter's, as one-input shapeless recipes
 		out, ok := bedrockStackOf(attach.ItemStack{ID: r.Out, Count: int32(r.Count)})
 		d, ok2 := descriptor(r.In)
 		if !ok || !ok2 {
 			continue
 		}
-		pk.Recipes = append(pk.Recipes, &protocol.ShapelessRecipe{
+		pk.ShapelessRecipes = append(pk.ShapelessRecipes, protocol.ShapelessRecipe{
 			RecipeID: fmt.Sprintf("tachyne:stonecutter/%d", i),
 			Input:    []protocol.ItemDescriptorCount{d}, Output: []protocol.ItemStack{out}, UUID: recipeUUID(int32(stonecutBase + i)),
 			Block:             "stonecutter",
-			UnlockRequirement: protocol.RecipeUnlockRequirement{Context: protocol.RecipeUnlockContextAlwaysUnlocked},
+			UnlockRequirement: alwaysUnlocked,
 			RecipeNetworkID:   uint32(stonecutBase + i),
 		})
 	}
@@ -169,12 +170,12 @@ func descriptor(item int32) (protocol.ItemDescriptorCount, bool) {
 	if item == 0 {
 		return protocol.ItemDescriptorCount{Descriptor: &protocol.InvalidItemDescriptor{}}, true
 	}
-	rid, data, ok := bedrockItemIDs(item)
+	_, data, ok := bedrockItemIDs(item)
 	if !ok {
 		return protocol.ItemDescriptorCount{Descriptor: &protocol.InvalidItemDescriptor{}}, false
 	}
-	return protocol.ItemDescriptorCount{
-		Descriptor: &protocol.DefaultItemDescriptor{NetworkID: int16(rid), MetadataValue: int16(data)},
+	return protocol.ItemDescriptorCount{ // by identifier since 1.26.50, not runtime id
+		Descriptor: &protocol.DefaultItemDescriptor{Name: javaItemBedrock[item].Name, MetadataValue: data},
 		Count:      1,
 	}, true
 }

@@ -37,7 +37,7 @@ func TestCreativeInventory(t *testing.T) {
 	m := newInvMirror()
 	req := protocol.ItemStackRequest{RequestID: 1, Actions: []protocol.StackRequestAction{
 		&protocol.CraftCreativeStackRequestAction{CreativeItemNetworkID: stone},
-		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.ItemStack{{Count: 64}}, TimesCrafted: 1},
+		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.StackRequestItem{{Count: 64}}, TimesCrafted: 1},
 		placeAction(64, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerHotBar, 2)),
 	}}
 	changed, steps, ok := m.applyRequest(req, nil)

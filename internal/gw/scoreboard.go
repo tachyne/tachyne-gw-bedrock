@@ -139,10 +139,10 @@ func (b *scoreboard) score(e attach.Score) []packet.Packet {
 	}
 	entry := protocol.ScoreboardEntry{EntryID: entryID(e.Objective, e.Owner), ObjectiveName: e.Objective, Score: e.Value,
 		IdentityType: protocol.ScoreboardIdentityFakePlayer, DisplayName: b.decorate(e.Owner)}
-	if e.Reset {
-		return []packet.Packet{&packet.SetScore{ActionType: packet.ScoreboardActionRemove, Entries: []protocol.ScoreboardEntry{entry}}}
+	if e.Reset { // a removal is an entry of its own kind since 1.26.50
+		entry.IdentityType = protocol.ScoreboardIdentityRemove
 	}
-	return []packet.Packet{&packet.SetScore{ActionType: packet.ScoreboardActionModify, Entries: []protocol.ScoreboardEntry{entry}}}
+	return []packet.Packet{&packet.SetScore{Entries: []protocol.ScoreboardEntry{entry}}}
 }
 
 // team folds a team frame in; every shown objective is redrawn, since a
@@ -230,7 +230,7 @@ func (b *scoreboard) showIn(slot, name string, o *sbObjective) []packet.Packet {
 			IdentityType: protocol.ScoreboardIdentityFakePlayer, DisplayName: b.decorate(owner)})
 	}
 	if len(entries) > 0 {
-		out = append(out, &packet.SetScore{ActionType: packet.ScoreboardActionModify, Entries: entries})
+		out = append(out, &packet.SetScore{Entries: entries})
 	}
 	return out
 }

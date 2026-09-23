@@ -31,17 +31,27 @@ func TestMaps(t *testing.T) {
 	}
 	pk := s.apply(attach.MapData{MapID: 5, Scale: 1, X: 10, Y: 20, Width: 2, Height: 2, Colors: patch,
 		HasDecor: true, Decor: []attach.MapDecoration{{Type: 0, X: 4, Z: -6, Rot: 3}, {Type: 24, X: 0, Z: 0}}}, 1)
-	if pk.MapID != 5 || pk.Scale != 1 || pk.Dimension != 1 || pk.Width != 128 || len(pk.Pixels) != 128*128 {
+	scale, _ := pk.Scale.Value()
+	width, _ := pk.Width.Value()
+	pixels, _ := pk.Pixels.Value()
+	decor, _ := pk.Decorations.Value()
+	if pk.MapID != 5 || scale != 1 || pk.Dimension != 1 || width != 128 || len(pixels) != 128*128 {
 		t.Fatalf("map packet %+v", pk.MapID)
 	}
-	if pk.Pixels[20*128+10].G != 0xB2 || pk.Pixels[21*128+11].G != 0xB2 || pk.Pixels[0].A != 0 {
+	if pixels[20*128+10].G != 0xB2 || pixels[21*128+11].G != 0xB2 || pixels[0].A != 0 {
 		t.Errorf("patch not applied")
 	}
-	if len(pk.Decorations) != 2 || pk.Decorations[0].Type != 0 || pk.Decorations[0].X != 4 || int8(pk.Decorations[0].Y) != -6 ||
-		pk.Decorations[1].Type != 13 || pk.Decorations[1].Colour != (color.RGBA{176, 46, 38, 255}) {
-		t.Errorf("decorations %+v", pk.Decorations)
+	if len(decor) != 2 || decor[0].Type != 0 || decor[0].X != 4 || int8(decor[0].Y) != -6 ||
+		decor[1].Type != 13 || decor[1].Colour != (color.RGBA{176, 46, 38, 255}) {
+		t.Errorf("decorations %+v", decor)
 	}
-	if again := s.get(5, 1); again == nil || again.Pixels[20*128+10].G != 0xB2 || len(again.Decorations) != 2 {
+	again := s.get(5, 1)
+	if again == nil {
+		t.Fatal("map not kept for the client's request")
+	}
+	againPixels, _ := again.Pixels.Value()
+	againDecor, _ := again.Decorations.Value()
+	if againPixels[20*128+10].G != 0xB2 || len(againDecor) != 2 {
 		t.Error("map not kept for the client's request")
 	}
 	if s.get(6, 1) != nil {

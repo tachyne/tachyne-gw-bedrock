@@ -33,11 +33,13 @@ func TestCraftingBridge(t *testing.T) {
 		Shaped:    []attach.ShapedRecipe{{ID: 0, W: 1, H: 2, Cells: []int32{plank, plank}, Result: stick, Count: 4}},
 		Shapeless: []attach.ShapelessRecipe{{ID: 1, Ingredients: []int32{plank}, Result: stick, Count: 1}}})
 	pk := rs.packet()
-	if !pk.ClearRecipes || len(pk.Recipes) != 2+len(smithingRecipes())+1+len(tproto.StonecuttingRecipes) { // the book, the smithing upgrades and trim, the stonecutter's
-		t.Fatalf("crafting data: %d recipes", len(pk.Recipes))
+	if !pk.ClearRecipes || len(pk.ShapedRecipes) != 1 || len(pk.ShapelessRecipes) != 1+len(tproto.StonecuttingRecipes) ||
+		len(pk.SmithingTransformRecipes) != len(smithingRecipes()) || len(pk.SmithingTrimRecipes) != 1 { // the book, the stonecutter's, the smithing upgrades and trim
+		t.Fatalf("crafting data: %d shaped, %d shapeless, %d transform, %d trim",
+			len(pk.ShapedRecipes), len(pk.ShapelessRecipes), len(pk.SmithingTransformRecipes), len(pk.SmithingTrimRecipes))
 	}
-	if sr, ok := pk.Recipes[0].(*protocol.ShapedRecipe); !ok || sr.RecipeNetworkID != 1 || len(sr.Input) != 2 || sr.Output[0].Count != 4 {
-		t.Errorf("shaped %+v", pk.Recipes[0])
+	if sr := pk.ShapedRecipes[0]; sr.RecipeNetworkID != 1 || len(sr.Input) != 2 || sr.Output[0].Count != 4 {
+		t.Errorf("shaped %+v", sr)
 	}
 	if _, ok := rs.output(2); !ok {
 		t.Error("shapeless recipe missing")
@@ -51,7 +53,7 @@ func TestCraftingBridge(t *testing.T) {
 	m.set(2, attach.ItemStack{ID: plank, Count: 1})
 	req := protocol.ItemStackRequest{RequestID: 7, Actions: []protocol.StackRequestAction{
 		&protocol.CraftRecipeStackRequestAction{RecipeNetworkID: 1, NumberOfCrafts: 1},
-		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.ItemStack{{Count: 4}}, TimesCrafted: 1},
+		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.StackRequestItem{{Count: 4}}, TimesCrafted: 1},
 		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerCraftingInput, 28)}},
 		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerCraftingInput, 29)}},
 		placeAction(4, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerHotBar, 3)),
@@ -77,7 +79,7 @@ func TestCraftingBridge(t *testing.T) {
 	m2 := newInvMirror()
 	m2.set(9, attach.ItemStack{ID: plank, Count: 2})
 	req2 := protocol.ItemStackRequest{RequestID: 8, Actions: []protocol.StackRequestAction{
-		&protocol.AutoCraftRecipeStackRequestAction{RecipeNetworkID: 2, TimesCrafted: 2},
+		&protocol.AutoCraftRecipeStackRequestAction{RecipeNetworkID: 2, NumberOfCrafts: 2},
 		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 2, Source: slotInfo(protocol.ContainerInventory, 9)}},
 		takeAction(2, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerCursor, 0)),
 	}}
@@ -136,7 +138,7 @@ func TestAnvilAndGrindstone(t *testing.T) {
 	m.set(2, one(sword))
 	req := protocol.ItemStackRequest{RequestID: 3, FilterStrings: []string{"Excalibur"}, Actions: []protocol.StackRequestAction{
 		&protocol.CraftRecipeOptionalStackRequestAction{FilterStringIndex: 0},
-		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.ItemStack{{Count: 1}}, TimesCrafted: 1},
+		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.StackRequestItem{{Count: 1}}, TimesCrafted: 1},
 		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerAnvilInput, 1)}},
 		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerAnvilMaterial, 2)}},
 		takeAction(1, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerCursor, 0)),
@@ -183,8 +185,8 @@ func TestStonecutter(t *testing.T) {
 	rs := newRecipeSet()
 	pk := rs.packet()
 	var cut *protocol.ShapelessRecipe
-	for _, r := range pk.Recipes {
-		if sr, ok := r.(*protocol.ShapelessRecipe); ok && sr.Block == "stonecutter" {
+	for i := range pk.ShapelessRecipes {
+		if sr := &pk.ShapelessRecipes[i]; sr.Block == "stonecutter" {
 			cut = sr
 			break
 		}

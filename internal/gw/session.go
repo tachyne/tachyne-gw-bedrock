@@ -637,11 +637,11 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					names[e.UUID] = e.Name
 					send(&packet.PlayerList{
-						ActionType: packet.PlayerListActionAdd,
 						Entries: []protocol.PlayerListEntry{{
-							UUID:     uuid.UUID(e.UUID),
-							Username: e.Name,
-							Skin:     s.skins.get(uuid.UUID(e.UUID)),
+							ActionType: protocol.PlayerListActionAdd,
+							UUID:       uuid.UUID(e.UUID),
+							Username:   e.Name,
+							Skin:       s.skins.get(uuid.UUID(e.UUID)),
 						}},
 					})
 				}
@@ -650,8 +650,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					delete(names, e.UUID)
 					send(&packet.PlayerList{
-						ActionType: packet.PlayerListActionRemove,
-						Entries:    []protocol.PlayerListEntry{{UUID: uuid.UUID(e.UUID)}},
+						Entries: []protocol.PlayerListEntry{{ActionType: protocol.PlayerListActionRemove, UUID: uuid.UUID(e.UUID)}},
 					})
 				}
 			case attach.MsgEntityAdd:
@@ -1073,7 +1072,8 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case *packet.PlayerAuthInput:
 				// Block actions ride the input packet (server-auth breaking):
 				// start/abort/finish map onto the domain Dig statuses.
-				for _, a := range p.BlockActions {
+				blockActions, _ := p.BlockActions.Value()
+				for _, a := range blockActions {
 					status := int32(-1)
 					switch a.Action {
 					case protocol.PlayerActionStartBreak:
@@ -1244,7 +1244,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						break
 					}
 					for _, a := range p.Actions {
-						if a.SourceType != protocol.InventoryActionSourceContainer || a.WindowID != protocol.WindowIDInventory {
+						if w, ok := a.WindowID.Value(); a.SourceType != protocol.InventoryActionSourceContainer || !ok || w != protocol.WindowIDInventory {
 							continue
 						}
 						if shed := int32(a.OldItem.Stack.Count) - int32(a.NewItem.Stack.Count); shed > 0 {

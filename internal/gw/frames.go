@@ -140,7 +140,7 @@ func bossBarPackets(e attach.BossBar, player int64, at mgl32.Vec3) []packet.Pack
 		m[protocol.EntityDataKeyScale] = float32(0.01)
 		return []packet.Packet{
 			&packet.AddActor{EntityUniqueID: id, EntityRuntimeID: uint64(id), EntityType: "minecraft:creeper", Position: at, EntityMetadata: m},
-			&packet.BossEvent{BossEntityUniqueID: id, PlayerUniqueID: player, EventType: packet.BossEventShow,
+			&packet.BossEvent{BossEntityUniqueID: id, EventType: packet.BossEventShow,
 				BossBarTitle: e.Title, HealthPercentage: e.Health, Colour: packet.BossEventColourPurple, Overlay: packet.BossEventOverlayProgress},
 		}
 	case attach.BossBarHealth:

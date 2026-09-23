@@ -64,8 +64,8 @@ func sortedKeys(m map[int32]int32) []int32 {
 }
 
 // smithingRecipes renders the upgrade table as Bedrock transform recipes.
-func smithingRecipes() []protocol.Recipe {
-	var out []protocol.Recipe
+func smithingRecipes() []protocol.SmithingTransformRecipe {
+	var out []protocol.SmithingTransformRecipe
 	tmpl, ok1 := descriptor(tproto.SmithingUpgradeTemplate)
 	add, ok2 := descriptor(netheriteIngot)
 	if !ok1 || !ok2 || netheriteIngot == 0 {
@@ -77,7 +77,7 @@ func smithingRecipes() []protocol.Recipe {
 		if !ok || !ok3 {
 			continue
 		}
-		out = append(out, &protocol.SmithingTransformRecipe{
+		out = append(out, protocol.SmithingTransformRecipe{
 			RecipeNetworkID: uint32(smithBase + i), RecipeID: fmt.Sprintf("tachyne:smithing/%d", i),
 			Template: tmpl, Base: b, Addition: add, Result: res, Block: "smithing_table",
 		})

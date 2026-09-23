@@ -118,20 +118,26 @@ func (s *mapStore) get(id int32, dim int32) *packet.ClientBoundMapItemData {
 }
 
 func (s *mapStore) render(id int32, m *mapState, dim int32) *packet.ClientBoundMapItemData {
-	pk := &packet.ClientBoundMapItemData{
-		MapID: int64(id), UpdateFlags: packet.MapUpdateFlagTexture | packet.MapUpdateFlagDecoration | packet.MapUpdateFlagInitialisation,
-		Dimension: byte(dim), LockedMap: m.locked, Scale: m.scale, MapsIncludedIn: []int64{int64(id)},
-		Height: 128, Width: 128, Pixels: append([]color.RGBA(nil), m.pixels[:]...),
-	}
+	// Every section present: the texture, the decorations and the map's
+	// identity (what the three update flags selected before 1.26.50).
+	tracked := []protocol.MapTrackedObject{}
+	decor := []protocol.MapDecoration{}
 	for i, d := range m.decor {
 		icon, ok := mapIcons[d.Type]
 		if !ok {
 			continue
 		}
-		pk.TrackedObjects = append(pk.TrackedObjects, protocol.MapTrackedObject{Type: protocol.MapObjectTypeEntity, EntityUniqueID: int64(i)})
-		pk.Decorations = append(pk.Decorations, protocol.MapDecoration{Type: icon.id, Rotation: d.Rot, X: byte(d.X), Y: byte(d.Z), Label: d.Name, Colour: icon.colour})
+		tracked = append(tracked, protocol.MapTrackedObject{Type: protocol.MapObjectTypeEntity, EntityUniqueID: protocol.Option(int64(i))})
+		decor = append(decor, protocol.MapDecoration{Type: icon.id, Rotation: d.Rot, X: byte(d.X), Y: byte(d.Z), Label: d.Name, Colour: icon.colour})
 	}
-	return pk
+	return &packet.ClientBoundMapItemData{
+		MapID: int64(id), Dimension: byte(dim), LockedMap: m.locked,
+		Scale: protocol.Option(m.scale), MapsIncludedIn: protocol.Option([]int64{int64(id)}),
+		TrackedObjects: protocol.Option(tracked), Decorations: protocol.Option(decor),
+		Height: protocol.Option(int32(128)), Width: protocol.Option(int32(128)),
+		XOffset: protocol.Option(int32(0)), YOffset: protocol.Option(int32(0)),
+		Pixels: protocol.Option(append([]color.RGBA(nil), m.pixels[:]...)),
+	}
 }
 
 // mapItemNBT is a filled map's Bedrock NBT: the map id the client asks

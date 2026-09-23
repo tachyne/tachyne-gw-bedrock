@@ -63,11 +63,11 @@ func trimData() *packet.TrimData {
 }
 
 // trimRecipe is the one smithing trim recipe, in item tags.
-func trimRecipe() *protocol.SmithingTrimRecipe {
+func trimRecipe() protocol.SmithingTrimRecipe {
 	tag := func(t string) protocol.ItemDescriptorCount {
 		return protocol.ItemDescriptorCount{Descriptor: &protocol.ItemTagItemDescriptor{Tag: t}, Count: 1}
 	}
-	return &protocol.SmithingTrimRecipe{
+	return protocol.SmithingTrimRecipe{
 		RecipeNetworkID: trimBase, RecipeID: "minecraft:smithing_armor_trim",
 		Template: tag("minecraft:trim_templates"), Base: tag("minecraft:trimmable_armors"), Addition: tag("minecraft:trim_materials"),
 		Block: "smithing_table",

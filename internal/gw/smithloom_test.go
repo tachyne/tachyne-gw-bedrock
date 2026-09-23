@@ -16,7 +16,7 @@ func TestSmithingTable(t *testing.T) {
 	if len(recipes) != len(tproto.SmithingTransform) || netheriteIngot == 0 {
 		t.Fatalf("%d transform recipes (table %d), ingot %d", len(recipes), len(tproto.SmithingTransform), netheriteIngot)
 	}
-	tr := recipes[0].(*protocol.SmithingTransformRecipe)
+	tr := recipes[0]
 	if tr.Block != "smithing_table" || tr.RecipeNetworkID != smithBase || tr.Result.Count != 1 {
 		t.Errorf("recipe %+v", tr)
 	}
@@ -91,7 +91,7 @@ func TestLoom(t *testing.T) {
 	m.set(1, attach.ItemStack{ID: mappedItem(t, 1), Count: 2})
 	req := protocol.ItemStackRequest{RequestID: 10, Actions: []protocol.StackRequestAction{
 		&protocol.CraftLoomRecipeStackRequestAction{Pattern: name, TimesCrafted: 1},
-		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.ItemStack{{Count: 1}}, TimesCrafted: 1},
+		&protocol.CraftResultsDeprecatedStackRequestAction{ResultItems: []protocol.StackRequestItem{{Count: 1}}, TimesCrafted: 1},
 		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerLoomInput, 9)}},
 		&protocol.ConsumeStackRequestAction{DestroyStackRequestAction: protocol.DestroyStackRequestAction{Count: 1, Source: slotInfo(protocol.ContainerLoomDye, 10)}},
 		takeAction(1, slotInfo(protocol.ContainerCreatedOutput, 50), slotInfo(protocol.ContainerCursor, 0)),

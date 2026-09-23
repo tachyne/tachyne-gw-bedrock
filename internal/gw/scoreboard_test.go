@@ -3,6 +3,7 @@ package gw
 import (
 	"testing"
 
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	attach "github.com/tachyne/tachyne-common/attach"
 )
@@ -42,7 +43,7 @@ func TestScoreboard(t *testing.T) {
 		}
 	}
 	rm := b.score(attach.Score{Owner: "Steve", Objective: "kills", Reset: true})
-	if len(rm) != 1 || rm[0].(*packet.SetScore).ActionType != packet.ScoreboardActionRemove {
+	if len(rm) != 1 || rm[0].(*packet.SetScore).Entries[0].IdentityType != protocol.ScoreboardIdentityRemove {
 		t.Errorf("reset %+v", rm)
 	}
 	if pks := b.objective(attach.Objective{Name: "kills", Method: attach.ObjRemove}); len(pks) != 1 || pks[0].(*packet.RemoveObjective).ObjectiveName != "kills" {
