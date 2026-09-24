@@ -72,7 +72,8 @@ func (s *Server) Run(ctx context.Context) error {
 // gets a proper reason screen.
 func (s *Server) handle(ln *minecraft.Listener, c *minecraft.Conn) {
 	id := c.IdentityData()
-	name, uuid, xuid := id.DisplayName, id.Identity, id.XUID
+	name, uuid := javaIdentity(id) // Floodgate's scheme: XUID UUID, "."-prefixed name
+	xuid := id.XUID
 	remote := c.RemoteAddr().String()
 
 	roles := []string{}

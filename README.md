@@ -77,6 +77,12 @@ Env: `TACHYNE_LISTEN` (udp :19132), `TACHYNE_BACKEND` (world attach addr),
 policy; unset = OPEN, dev only), `TACHYNE_XBL_AUTH=off` (disable XBL
 authentication — offline probes; NEVER in production), `TACHYNE_MOTD`.
 
+Identity: an Xbox-authenticated player joins the world in Floodgate's
+scheme. Their UUID is `UUID(0, xuid)`, so it stays the same for the
+account and never collides with a Java account. Their name is the
+gamertag behind a `.`, with spaces as `_` and at most 16 characters, so a
+Bedrock name cannot clash with a Java player's.
+
 ## Headless smoke
 
 `cmd/bedrockprobe` is an offline Bedrock client: joins, spawns, decodes every
