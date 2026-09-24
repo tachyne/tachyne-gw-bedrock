@@ -192,6 +192,8 @@ type mobLook struct {
 	hasPandaMain                                                        bool
 	pandaMain, pandaHidden                                              int32
 	climate                                                             int32 // Bedrock climate_variant index: 0 temperate, 1 warm, 2 cold
+	hasArchetype                                                        bool
+	archetype                                                           int32 // sulfur cube: minecraft:sulfur_cube_archetype index (sulfurcube.go)
 }
 
 // villagerProfessionBedrock and villagerTypeBedrock renumber the canonical
@@ -354,6 +356,13 @@ func (st *entState) applyMobMeta(e metaEntry) {
 		case e.idx == 17 && e.typ == metaTypeBool:
 			l.powered = e.val != 0
 		}
+	case bedrockSulfurCube:
+		// Its own fields ride at their 26.x indices (sulfur cube size 18 is
+		// not a scale on Bedrock); MAX_FUSE (19) is the lit cube's fuse time,
+		// -1 while unlit.
+		if e.idx == 19 && e.typ == metaTypeVarInt {
+			l.hasFuse, l.fuse = e.val >= 0, int32(e.val)
+		}
 	case "minecraft:slime", "minecraft:magma_cube":
 		if e.idx == 16 && e.typ == metaTypeVarInt { // size 1/2/4: the cube's scale
 			l.scale = 0.1 + float32(e.val)
@@ -450,6 +459,8 @@ func actorData(eid int32, st *entState) *packet.SetActorData {
 	flag(l.shaking, protocol.EntityDataFlagShaking)
 	flag(l.bribed, protocol.EntityDataFlagBribed)
 	switch {
+	case st.ident == bedrockSulfurCube:
+		m[protocol.EntityDataKeyScale] = float32(1) // the baby flag alone shrinks it (Geyser: baby size 1)
 	case l.scale > 0:
 		m[protocol.EntityDataKeyScale] = l.scale
 	case l.baby:
@@ -500,6 +511,9 @@ func actorData(eid int32, st *entState) *packet.SetActorData {
 	pd := &packet.SetActorData{EntityRuntimeID: rt(eid), EntityMetadata: m}
 	if l.hasClimate {
 		pd.EntityProperties.IntegerProperties = []protocol.IntegerEntityProperty{{Index: 0, Value: l.climate}}
+	}
+	if l.hasArchetype {
+		pd.EntityProperties.IntegerProperties = []protocol.IntegerEntityProperty{{Index: 0, Value: l.archetype}}
 	}
 	return pd
 }

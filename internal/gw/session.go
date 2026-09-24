@@ -196,6 +196,7 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 		climateProperty("minecraft:pig"),
 		climateProperty("minecraft:cow"),
 		climateProperty("minecraft:chicken"),
+		sulfurCubeProperty(), // the sulfur cube's archetype look
 	); err != nil {
 		return fmt.Errorf("spawn packets: %w", err)
 	}
@@ -865,6 +866,15 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				// inventory's business, so a player gets only its armour).
 				var e attach.Equipment
 				if json.Unmarshal(payload, &e) == nil {
+					if st := ents[e.EID]; st != nil && st.ident == bedrockSulfurCube {
+						// A sulfur cube's swallowed block: in its hand on Bedrock,
+						// with the archetype look it gives.
+						body := e.Slots[attach.EquipBody]
+						for _, p := range sulfurBodyPackets(e.EID, st, bedrockStack(body), body.ID) {
+							send(p)
+						}
+						break
+					}
 					if e.EID != welcome.EID {
 						send(&packet.MobEquipment{EntityRuntimeID: rt(e.EID), NewItem: bedrockStack(e.Slots[attach.EquipMainHand])})
 						// The off hand (a piglin's gold, a player's shield): Geyser's
