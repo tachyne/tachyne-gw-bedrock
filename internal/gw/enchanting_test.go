@@ -24,6 +24,9 @@ func TestEnchantingTable(t *testing.T) {
 	if bedrockEnchantment(canonicalEnchant(t, "sharpness")) != 9 || bedrockEnchantment(canonicalEnchant(t, "sweeping_edge")) != bedrockEnchantInvalid || bedrockEnchantment(-1) != -1 {
 		t.Fatal("enchantment renumbering")
 	}
+	if canonicalEnchant(t, "lunge") != 42 || bedrockEnchantment(42) != 41 {
+		t.Fatalf("lunge: canonical %d, Bedrock %d; want 42 and 41", canonicalEnchant(t, "lunge"), bedrockEnchantment(42))
+	}
 	w := &winState{}
 	m := w.open(4, enchantLayout, protocol.ContainerTypeEnchantment, "Enchant")
 	if !m.table || m.ench[0].level != -1 {

@@ -43,11 +43,13 @@ var bedrockEnchantments = func() map[string]int32 {
 // (one past the table, as Geyser sends it).
 var bedrockEnchantInvalid = int32(len(bedrockEnchantments) + 1)
 
-// canonicalEnchantments is the engine's enchantment registry order.
+// canonicalEnchantments is the engine's enchantment registry order: the
+// 1.21.5 list, then what 26.x appended after it (common's extra26xEntries),
+// so lunge is 42 here as it is to the engine and to a Java client.
 var canonicalEnchantments = func() []string {
 	for _, r := range tproto.SyncedRegistries {
 		if r.ID == "minecraft:enchantment" {
-			return r.Entries
+			return append(append([]string{}, r.Entries...), "minecraft:lunge")
 		}
 	}
 	return nil
