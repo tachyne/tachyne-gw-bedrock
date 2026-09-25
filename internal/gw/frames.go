@@ -145,6 +145,8 @@ func bossBarPackets(e attach.BossBar, player int64, at mgl32.Vec3) []packet.Pack
 		}
 	case attach.BossBarHealth:
 		return []packet.Packet{&packet.BossEvent{BossEntityUniqueID: id, EventType: packet.BossEventHealthPercentage, HealthPercentage: e.Health}}
+	case attach.BossBarTitle:
+		return []packet.Packet{&packet.BossEvent{BossEntityUniqueID: id, EventType: packet.BossEventTitle, BossBarTitle: e.Title}}
 	case attach.BossBarRemove:
 		return []packet.Packet{
 			&packet.BossEvent{BossEntityUniqueID: id, EventType: packet.BossEventHide},
