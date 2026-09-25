@@ -1285,6 +1285,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					// Bow release / stop eating: Java carries this as dig status 5.
 					b.Write(attach.MsgDig, attach.Dig{Status: 5})
 				}
+			case *packet.BlockPickRequest, *packet.ActorPickRequest: // middle click: the world picks
+				if e, ok := pickFrame(p); ok {
+					b.Write(attach.MsgPickItem, e)
+				}
 			case *packet.MobEquipment:
 				b.Write(attach.MsgHeldSlot, attach.HeldSlot{Slot: int16(p.HotBarSlot)})
 			case *packet.Text:
