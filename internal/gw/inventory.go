@@ -112,6 +112,42 @@ func dyedColorNBT(st attach.ItemStack) map[string]any {
 
 const componentDyedColor = 35 // minecraft:dyed_color, canonical
 
+const componentInstrument = 52 // minecraft:instrument, canonical: EitherHolder (flag, holder id+1)
+
+var itemGoatHorn = tproto.CanonicalItem("goat_horn")
+
+// hornCallByRegistry: the instrument registry we declare (alphabetical:
+// admire, call, dream, feel, ponder, seek, sing, yearn) to Bedrock's goat
+// horn aux values (ponder, sing, seek, feel, admire, call, yearn, dream —
+// Geyser's GoatHornItem sets the damage to the instrument's Bedrock id).
+var hornCallByRegistry = []int32{4, 5, 7, 3, 0, 2, 1, 6}
+
+// goatHornCall reads a goat horn's instrument (the world writes it as the
+// stack's first component) as its Bedrock aux value.
+func goatHornCall(st attach.ItemStack) (int32, bool) {
+	if st.ID != itemGoatHorn || len(st.Components) == 0 {
+		return 0, false
+	}
+	r := bytes.NewReader(st.Components)
+	if addC, err := tproto.ReadVarInt(r); err != nil || addC <= 0 {
+		return 0, false
+	}
+	if _, err := tproto.ReadVarInt(r); err != nil {
+		return 0, false
+	}
+	if id, err := tproto.ReadVarInt(r); err != nil || id != componentInstrument {
+		return 0, false
+	}
+	if flag, err := r.ReadByte(); err != nil || flag != 1 {
+		return 0, false
+	}
+	h, err := tproto.ReadVarInt(r)
+	if err != nil || h < 1 || int(h) > len(hornCallByRegistry) {
+		return 0, false
+	}
+	return hornCallByRegistry[h-1], true
+}
+
 // bedrockStack renders a domain item stack for the Bedrock client. An unknown
 // or unmapped item comes out empty rather than wrong: showing the WRONG item is
 // worse than showing a gap, because a player would act on it.
@@ -122,6 +158,9 @@ func bedrockStack(st attach.ItemStack) protocol.ItemInstance {
 	rid, data, ok := bedrockItemIDs(st.ID)
 	if !ok {
 		return protocol.ItemInstance{}
+	}
+	if call, ok := goatHornCall(st); ok {
+		data = call
 	}
 	return protocol.ItemInstance{
 		StackNetworkID: stackIDs.Add(1),
