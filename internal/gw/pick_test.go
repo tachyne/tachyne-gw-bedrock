@@ -21,3 +21,22 @@ func TestPickFrame(t *testing.T) {
 		t.Fatal("an unrelated packet became a pick")
 	}
 }
+
+// Rowing from PlayerAuthInput: forward rows both paddles, and Bedrock's
+// paddle flags are crossed (Geyser: "Yes. These are flipped.").
+func TestBoatPaddles(t *testing.T) {
+	const size = 128
+	for _, tc := range []struct {
+		ids  []int32
+		want attach.PaddleBoat
+	}{
+		{nil, attach.PaddleBoat{}},
+		{[]int32{packet.InputFlagUp}, attach.PaddleBoat{Left: true, Right: true}},
+		{[]int32{packet.InputFlagPaddlingRight}, attach.PaddleBoat{Left: true}},
+		{[]int32{packet.InputFlagPaddlingLeft}, attach.PaddleBoat{Right: true}},
+	} {
+		if got := boatPaddles(protocol.NewInputFlagsFromIDs(size, tc.ids)); got != tc.want {
+			t.Errorf("flags %v: %+v, want %+v", tc.ids, got, tc.want)
+		}
+	}
+}

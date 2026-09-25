@@ -1064,6 +1064,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		lastOnGround := true
 		sneaking := false
 		var lastInput attach.Input
+		var lastPaddles attach.PaddleBoat
 		for {
 			pk, err := c.ReadPacket()
 			if err != nil {
@@ -1120,6 +1121,11 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					b.Write(attach.MsgInput, in)
 				}
 				if riding.Load() != 0 {
+					// Rowing: the paddles the world syncs and sounds from.
+					if pb := boatPaddles(p.InputData); pb != lastPaddles {
+						lastPaddles = pb
+						b.Write(attach.MsgPaddleBoat, pb)
+					}
 					continue // a rider's own moves are camera only; the vehicle carries the player
 				}
 				// Bedrock streams input every tick; forward only real movement.
