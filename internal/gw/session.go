@@ -929,6 +929,12 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					send(&packet.ActorEvent{EntityRuntimeID: rt(e.EID), EventType: packet.ActorEventHurt})
 				}
+			case attach.MsgDamageEvent:
+				// damage_event: the same hurt flash on Bedrock.
+				var e attach.DamageEvent
+				if json.Unmarshal(payload, &e) == nil {
+					send(&packet.ActorEvent{EntityRuntimeID: rt(e.EID), EventType: packet.ActorEventHurt})
+				}
 			case attach.MsgEntityStatus:
 				// Only the death animation has a Bedrock twin worth sending;
 				// the other statuses (love, tame, cure) have no direct match.
