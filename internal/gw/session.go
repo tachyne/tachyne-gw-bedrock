@@ -298,13 +298,17 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				},
 			})
 		}
+		var frames attach.FrameQueue // expands MsgBundle in place
 		for {
-			typ, payload, err := attach.ReadFrame(b.Get())
+			typ, payload, err := frames.Next(b.Get())
 			if err != nil {
 				errs <- fmt.Errorf("world: %w", err)
 				return
 			}
 			switch typ {
+			case attach.MsgBundle:
+				frames.Expand(payload) // Bedrock has no bundles: its frames just follow
+			case attach.MsgBundleEnd, attach.MsgBundleOpen, attach.MsgBundleClose:
 			case attach.MsgChunk:
 				h, body, err := attach.DecodeChunk(payload)
 				if err != nil {
