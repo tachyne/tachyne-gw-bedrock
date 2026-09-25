@@ -21,3 +21,15 @@ func TestParticleAndWorldEvents(t *testing.T) {
 		t.Error("an unmapped world event stays silent")
 	}
 }
+
+// Java level events a Bedrock client hears as its own sounds.
+func TestWorldEventSounds(t *testing.T) {
+	for ev, want := range map[int32]int32{1029: packet.LevelEventSoundAnvilBroken, 1031: packet.LevelEventSoundAnvilLand, 1045: packet.LevelEventSoundPointedDripstoneLand, 3007: packet.LevelEventParticleSculkShriek} {
+		if p := worldEvent(attach.WorldFX{Event: ev}); p == nil || p.EventType != want {
+			t.Errorf("event %d: got %+v, want %d", ev, p, want)
+		}
+	}
+	if _, _, ok := bedrockSound("minecraft:block.sculk_shrieker.shriek"); !ok {
+		t.Error("the shriek sound has no Bedrock mapping")
+	}
+}

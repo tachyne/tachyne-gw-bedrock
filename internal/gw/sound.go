@@ -25,6 +25,7 @@ var mobSoundKinds = map[string]string{
 
 // worldSounds are the non-mob sounds with a Bedrock event of their own.
 var worldSounds = map[string]string{
+	"block.sculk_shrieker.shriek":    packet.SoundEventSculkShriekerShriek, // level event 3007's sound
 	"entity.generic.explode":         packet.SoundEventExplode,
 	"entity.generic.eat":             packet.SoundEventEat,
 	"entity.generic.drink":           packet.SoundEventDrink,

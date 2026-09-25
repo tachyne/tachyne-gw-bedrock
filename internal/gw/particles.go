@@ -41,6 +41,16 @@ func worldEvent(e attach.WorldFX) *packet.LevelEvent {
 		return &packet.LevelEvent{EventType: packet.LevelEventParticlesDestroyBlock, Position: pos, EventData: int32(bedrockBlockRID(uint32(e.Data)))}
 	case 2005: // bone meal
 		return &packet.LevelEvent{EventType: packet.LevelEventParticleCropGrowth, Position: pos, EventData: e.Data}
+	case 1029: // anvil destroyed
+		return &packet.LevelEvent{EventType: packet.LevelEventSoundAnvilBroken, Position: pos}
+	case 1030: // anvil used
+		return &packet.LevelEvent{EventType: packet.LevelEventSoundAnvilUsed, Position: pos}
+	case 1031: // anvil landed
+		return &packet.LevelEvent{EventType: packet.LevelEventSoundAnvilLand, Position: pos}
+	case 1045: // pointed dripstone landed
+		return &packet.LevelEvent{EventType: packet.LevelEventSoundPointedDripstoneLand, Position: pos}
+	case 3007: // a sculk shrieker shrieks: its particles (the sound rides separately)
+		return &packet.LevelEvent{EventType: packet.LevelEventParticleSculkShriek, Position: pos}
 	}
 	return nil
 }
