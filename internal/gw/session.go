@@ -912,6 +912,13 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						send(p)
 					}
 				}
+			case attach.MsgStopSound:
+				// Bedrock plays our sounds as level sound events, with no
+				// category or name to stop by: only "stop everything" maps.
+				var e attach.StopSound
+				if json.Unmarshal(payload, &e) == nil && e.Category < 0 && e.Name == "" {
+					send(&packet.StopSound{StopAll: true})
+				}
 			case attach.MsgHurt:
 				// The hurt flash + tilt (Java's damage event) is an actor event here.
 				var e attach.Hurt
