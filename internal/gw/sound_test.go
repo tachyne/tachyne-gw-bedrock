@@ -23,3 +23,28 @@ func TestBedrockSoundMapping(t *testing.T) {
 		t.Errorf("chest open packet %+v", p)
 	}
 }
+
+// Button clicks play by name at Geyser's pitch_adjust times the Java pitch.
+func TestButtonClicksPlayByName(t *testing.T) {
+	for name, want := range map[string]struct {
+		sound string
+		pitch float32
+	}{
+		"minecraft:block.stone_button.click_on":         {"random.click", 0.6},
+		"minecraft:block.stone_button.click_off":        {"random.click", 0.5},
+		"minecraft:block.wooden_button.click_on":        {"random.wood_click", 0.6},
+		"minecraft:block.cherry_wood_button.click_off":  {"click_off.cherry_wood_button", 0.5},
+		"minecraft:block.metal_pressure_plate.click_on": {"click_on.metal_pressure_plate", 1},
+	} {
+		p, ok := soundPacket(attach.Sound{Name: name, X: 1, Y: 2, Z: 3, Volume: 1, Pitch: 1}).(*packet.PlaySound)
+		if !ok || p.SoundName != want.sound || p.Pitch != want.pitch || p.Volume != 1 || p.Position[1] != 2 {
+			t.Errorf("%s → %+v, want %s at pitch %v", name, p, want.sound, want.pitch)
+		}
+	}
+	if p, ok := soundPacket(attach.Sound{Name: "minecraft:block.chest.open"}).(*packet.LevelSoundEvent); !ok || p.SoundType != packet.SoundEventChestOpen {
+		t.Errorf("a level-event sound still goes as one: %+v", p)
+	}
+	if p := soundPacket(attach.Sound{Name: "minecraft:music_disc.13"}); p != nil {
+		t.Errorf("an unmapped sound stays silent, got %+v", p)
+	}
+}

@@ -551,6 +551,13 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil {
 					send(campfireData(e.X, e.Y, e.Z, e.Items))
 				}
+			case attach.MsgBlockDisplay:
+				var e attach.BlockDisplay
+				if json.Unmarshal(payload, &e) == nil {
+					if p := blockDisplayData(e); p != nil {
+						send(p)
+					}
+				}
 			case attach.MsgShelfItems:
 				var e attach.ShelfItems
 				if json.Unmarshal(payload, &e) == nil {
@@ -912,6 +919,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					if p := worldEvent(e); p != nil {
 						send(p)
 					}
+					if p := teleportTrail(e); p != nil {
+						send(p)
+					}
 					if e.Event == 3007 { // Java's client plays the shriek from the event; Bedrock is told
 						if p := levelSound(attach.Sound{Name: "minecraft:block.sculk_shrieker.shriek", X: float64(e.X) + 0.5, Y: float64(e.Y) + 0.5, Z: float64(e.Z) + 0.5}); p != nil {
 							send(p)
@@ -921,7 +931,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case attach.MsgSound:
 				var e attach.Sound
 				if json.Unmarshal(payload, &e) == nil {
-					if p := levelSound(e); p != nil {
+					if p := soundPacket(e); p != nil {
 						send(p)
 					}
 				}

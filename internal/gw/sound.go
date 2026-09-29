@@ -77,6 +77,67 @@ var worldSounds = map[string]string{
 	"item.flintandsteel.use":         packet.SoundEventIgnite,
 }
 
+// namedSound is a sound Bedrock plays by its resource-pack name (PlaySound)
+// and the factor its pitch takes: Geyser's sounds.json playsound_mapping and
+// pitch_adjust, which SoundUtils.playSound prefers wherever it has one.
+type namedSound struct {
+	name  string
+	pitch float32
+}
+
+// namedSounds are the sounds with no level sound event of their own: the
+// button and pressure-plate clicks of every block set type, and the
+// enderman's teleport.
+var namedSounds = map[string]namedSound{
+	"block.stone_button.click_on":                {"random.click", 0.6},
+	"block.stone_button.click_off":               {"random.click", 0.5},
+	"block.wooden_button.click_on":               {"random.wood_click", 0.6},
+	"block.wooden_button.click_off":              {"random.wood_click", 0.5},
+	"block.cherry_wood_button.click_on":          {"click_on.cherry_wood_button", 0.6},
+	"block.cherry_wood_button.click_off":         {"click_off.cherry_wood_button", 0.5},
+	"block.bamboo_wood_button.click_on":          {"click_on.bamboo_wood_button", 0.6},
+	"block.bamboo_wood_button.click_off":         {"click_off.bamboo_wood_button", 0.5},
+	"block.nether_wood_button.click_on":          {"click_on.nether_wood_button", 0.6},
+	"block.nether_wood_button.click_off":         {"click_off.nether_wood_button", 0.5},
+	"block.stone_pressure_plate.click_on":        {"click_on.stone_pressure_plate", 1},
+	"block.stone_pressure_plate.click_off":       {"click_off.stone_pressure_plate", 1},
+	"block.wooden_pressure_plate.click_on":       {"click_on.wooden_pressure_plate", 1},
+	"block.wooden_pressure_plate.click_off":      {"click_off.wooden_pressure_plate", 1},
+	"block.metal_pressure_plate.click_on":        {"click_on.metal_pressure_plate", 1},
+	"block.metal_pressure_plate.click_off":       {"click_off.metal_pressure_plate", 1},
+	"block.cherry_wood_pressure_plate.click_on":  {"click_on.cherry_wood_pressure_plate", 1},
+	"block.cherry_wood_pressure_plate.click_off": {"click_off.cherry_wood_pressure_plate", 1},
+	"block.bamboo_wood_pressure_plate.click_on":  {"click_on.bamboo_wood_pressure_plate", 1},
+	"block.bamboo_wood_pressure_plate.click_off": {"click_off.bamboo_wood_pressure_plate", 1},
+	"block.nether_wood_pressure_plate.click_on":  {"click_on.nether_wood_pressure_plate", 1},
+	"block.nether_wood_pressure_plate.click_off": {"click_off.nether_wood_pressure_plate", 1},
+	"entity.enderman.teleport":                   {"mob.endermen.portal", 1},
+}
+
+// soundPacket renders a world sound frame: a named PlaySound for the sounds
+// above, else the level sound event, else nil.
+func soundPacket(e attach.Sound) packet.Packet {
+	if ns, ok := namedSounds[strings.TrimPrefix(e.Name, "minecraft:")]; ok {
+		vol, pitch := e.Volume, e.Pitch
+		if vol == 0 {
+			vol = 1
+		}
+		if pitch == 0 {
+			pitch = 1
+		}
+		return &packet.PlaySound{
+			SoundName: ns.name,
+			Position:  mgl32.Vec3{float32(e.X), float32(e.Y), float32(e.Z)},
+			Volume:    vol,
+			Pitch:     pitch * ns.pitch,
+		}
+	}
+	if p := levelSound(e); p != nil {
+		return p
+	}
+	return nil
+}
+
 // bedrockSound turns a Java sound name into a Bedrock level sound event
 // (ok false = no equivalent).
 func bedrockSound(name string) (soundType string, entityType string, ok bool) {
