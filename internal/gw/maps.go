@@ -63,6 +63,13 @@ var mapIcons = map[int32]struct {
 	27: {17, color.RGBA{255, 255, 255, 255}}, 28: {18, color.RGBA{255, 255, 255, 255}}, 29: {19, color.RGBA{255, 255, 255, 255}},
 	30: {20, color.RGBA{255, 255, 255, 255}}, 31: {21, color.RGBA{255, 255, 255, 255}}, 32: {22, color.RGBA{255, 255, 255, 255}},
 	33: {23, color.RGBA{255, 255, 255, 255}}, 34: {24, color.RGBA{255, 255, 255, 255}},
+	// 26.3's explorer-map targets (abandoned camp, ancient city, desert
+	// pyramid, mineshaft, warm ocean ruin) have no Bedrock icon, nor a
+	// Geyser pairing: the treasure map's cross, and the temple for the
+	// desert pyramid — the stand-ins a 26.2 Java client is shown.
+	35: {4, color.RGBA{255, 255, 255, 255}}, 36: {4, color.RGBA{255, 255, 255, 255}},
+	37: {22, color.RGBA{255, 255, 255, 255}}, 38: {4, color.RGBA{255, 255, 255, 255}},
+	39: {4, color.RGBA{255, 255, 255, 255}},
 }
 
 // mapState is one map's texture and markers as this session knows them.

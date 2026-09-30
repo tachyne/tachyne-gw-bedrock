@@ -66,3 +66,20 @@ func TestMaps(t *testing.T) {
 		t.Errorf("map item nbt %v", nbt)
 	}
 }
+
+// 26.3's new decorations (35–39) render as the treasure cross, the desert
+// pyramid as the temple, rather than being dropped.
+func TestMapIcons263(t *testing.T) {
+	s := newMapStore()
+	pk := s.apply(attach.MapData{MapID: 9, HasDecor: true, Decor: []attach.MapDecoration{
+		{Type: 35}, {Type: 36}, {Type: 37}, {Type: 38}, {Type: 39}}}, 0)
+	decor, _ := pk.Decorations.Value()
+	if len(decor) != 5 {
+		t.Fatalf("%d decorations, want 5", len(decor))
+	}
+	for i, want := range []byte{4, 4, 22, 4, 4} {
+		if decor[i].Type != want {
+			t.Errorf("decoration %d: icon %d, want %d", 35+i, decor[i].Type, want)
+		}
+	}
+}
