@@ -268,7 +268,7 @@ func TestDyedLeatherCustomColor(t *testing.T) {
 	comps := tproto.AppendVarInt(nil, 1)
 	comps = tproto.AppendVarInt(comps, 0)
 	comps = tproto.AppendVarInt(comps, componentDyedColor)
-	comps = tproto.AppendVarInt(comps, 0xA06540)
+	comps = tproto.AppendI32(comps, 0xA06540) // DyedItemColor: a four-byte int
 	nbt := stackNBT(attach.ItemStack{ID: 1, Count: 1, Components: comps})
 	if nbt == nil || nbt["customColor"] != int32(0xA06540) {
 		t.Fatalf("customColor NBT = %v", nbt)

@@ -2,6 +2,8 @@ package gw
 
 import (
 	"bytes"
+	"encoding/binary"
+	"io"
 	"sync/atomic"
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -103,11 +105,11 @@ func dyedColorNBT(st attach.ItemStack) map[string]any {
 	if id, err := tproto.ReadVarInt(r); err != nil || id != componentDyedColor {
 		return nil
 	}
-	rgb, err := tproto.ReadVarInt(r)
-	if err != nil {
+	var b [4]byte // DyedItemColor: a four-byte int, not a VarInt
+	if _, err := io.ReadFull(r, b[:]); err != nil {
 		return nil
 	}
-	return map[string]any{"customColor": rgb}
+	return map[string]any{"customColor": int32(binary.BigEndian.Uint32(b[:]))}
 }
 
 const componentDyedColor = 35 // minecraft:dyed_color, canonical
