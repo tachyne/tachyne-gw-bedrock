@@ -98,7 +98,14 @@ func encodeChunk(c *chunk.Chunk, dim, cx, cz int32) *packet.LevelChunk {
 // renderChunk re-encodes one domain chunk into a Bedrock LevelChunk packet
 // (classic full-payload path: cache off, literal sub-chunk count).
 func renderChunk(h attach.ChunkHeader, body *attach.ChunkBody) *packet.LevelChunk {
-	r, base := dimLayout(h.Dim)
+	return renderChunkIn(h, body, h.Dim)
+}
+
+// renderChunkIn is renderChunk for a chunk of an engine dimension shown as
+// Bedrock dimension bdim (dims.go): the layout and the packet's dimension
+// are bdim's.
+func renderChunkIn(h attach.ChunkHeader, body *attach.ChunkBody, bdim int32) *packet.LevelChunk {
+	r, base := dimLayout(bdim)
 	c := chunk.New(registry{}, r)
 
 	// A TALL Java world (earth mode at true vertical scale) exceeds Bedrock's
@@ -134,7 +141,7 @@ func renderChunk(h attach.ChunkHeader, body *attach.ChunkBody) *packet.LevelChun
 		}
 	}
 
-	return encodeChunk(c, h.Dim, h.CX, h.CZ)
+	return encodeChunk(c, bdim, h.CX, h.CZ)
 }
 
 // defaultSkin is a plain opaque 64×64 skin for PlayerList entries: the domain

@@ -11,13 +11,19 @@ import (
 // and again with every Dimension frame (respawn, portal travel).
 
 func deathMetadata(d *attach.DeathPos) protocol.EntityMetadata {
+	return deathMetadataIn(d, newDimTable(nil))
+}
+
+// deathMetadataIn is deathMetadata with the death's dimension shown as the
+// Bedrock one its engine dimension maps to (dims.go).
+func deathMetadataIn(d *attach.DeathPos, dims dimTable) protocol.EntityMetadata {
 	m := protocol.NewEntityMetadata()
 	if d == nil {
 		m[protocol.EntityDataKeyPlayerHasDied] = byte(0)
 		return m
 	}
 	m[protocol.EntityDataKeyPlayerLastDeathPosition] = protocol.BlockPos{d.X, d.Y, d.Z}
-	m[protocol.EntityDataKeyPlayerLastDeathDimension] = d.Dim
+	m[protocol.EntityDataKeyPlayerLastDeathDimension] = dims.bedrock(d.Dim)
 	m[protocol.EntityDataKeyPlayerHasDied] = byte(1)
 	return m
 }

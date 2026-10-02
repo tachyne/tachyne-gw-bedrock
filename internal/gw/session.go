@@ -140,6 +140,7 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 	defer w.Close()
 
 	spawn := welcome.Spawn
+	startDims := newDimTable(welcome.Config)
 	if err := c.StartGame(minecraft.GameData{
 		WorldName:         s.MOTD,
 		EntityUniqueID:    int64(welcome.EID),
@@ -150,7 +151,7 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 		PlayerPosition:    mgl32.Vec3{float32(spawn.X), float32(spawn.Y) + playerEyeOffset, float32(spawn.Z)},
 		Yaw:               spawn.Yaw,
 		Pitch:             spawn.Pitch,
-		Dimension:         packet.DimensionOverworld,
+		Dimension:         startDims.bedrock(welcome.Dim),
 		WorldSpawn:        protocol.BlockPos{int32(spawn.X), int32(spawn.Y), int32(spawn.Z)},
 		Difficulty:        2,
 		Time:              welcome.Time,
@@ -201,7 +202,7 @@ func (s *Server) session(ln *minecraft.Listener, c *minecraft.Conn, name, uuidSt
 		return fmt.Errorf("spawn packets: %w", err)
 	}
 	if welcome.Death != nil { // where the player last died, for the recovery compass
-		c.WritePacket(&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: deathMetadata(welcome.Death)})
+		c.WritePacket(&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: deathMetadataIn(welcome.Death, startDims)})
 	}
 
 	log.Printf("%s: %q spawned (%.1f,%.1f,%.1f)", c.RemoteAddr(), name, spawn.X, spawn.Y, spawn.Z)
@@ -230,6 +231,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 	pos := welcome.Spawn
 	dead := false // between the world's death screen and the respawn teleport
 	var curDim atomic.Int32
+	curDim.Store(welcome.Dim)
+	// dims shows each engine dimension as one of Bedrock's three (dims.go);
+	// read-only after this, so both readers may use it.
+	dims := newDimTable(welcome.Config)
 	ccx, ccz := int32(math.Floor(pos.X))>>4, int32(math.Floor(pos.Z))>>4
 	var viewDist atomic.Int32
 	viewDist.Store(viewRadius)
@@ -259,7 +264,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		})
 	}
 	publish(pos.X, pos.Y, pos.Z, viewDist.Load())
-	if err := b.Write(attach.MsgWant, attach.Want{CX: ccx, CZ: ccz, Radius: viewDist.Load(), Dim: 0}); err != nil {
+	if err := b.Write(attach.MsgWant, attach.Want{CX: ccx, CZ: ccz, Radius: viewDist.Load(), Dim: welcome.Dim}); err != nil {
 		return err
 	}
 
@@ -318,7 +323,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if h.Dim != curDim.Load() {
 					continue // stale chunk from before a dimension switch
 				}
-				if err := c.WritePacket(renderChunk(h, body)); err != nil {
+				if err := c.WritePacket(renderChunkIn(h, body, dims.bedrock(h.Dim))); err != nil {
 					errs <- err
 					return
 				}
@@ -481,7 +486,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case attach.MsgMapData:
 				var e attach.MapData
 				if json.Unmarshal(payload, &e) == nil {
-					send(maps.apply(e, curDim.Load()))
+					send(maps.apply(e, dims.bedrock(curDim.Load())))
 				}
 			case attach.MsgEffect:
 				var e attach.Effect
@@ -909,7 +914,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 			case attach.MsgParticles:
 				var e attach.Particles
 				if json.Unmarshal(payload, &e) == nil {
-					if p := particleEvent(e, curDim.Load()); p != nil {
+					if p := particleEvent(e, dims.bedrock(curDim.Load())); p != nil {
 						send(p)
 					}
 				}
@@ -1022,9 +1027,10 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				// entities go too — the world re-adds the new dimension's.
 				var e attach.Dimension
 				if json.Unmarshal(payload, &e) == nil && e.Death != nil {
-					send(&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: deathMetadata(e.Death)})
+					send(&packet.SetActorData{EntityRuntimeID: rt(welcome.EID), EntityMetadata: deathMetadataIn(e.Death, dims)})
 				}
 				if json.Unmarshal(payload, &e) == nil && e.Dim != curDim.Load() {
+					from, to := dims.bedrock(curDim.Load()), dims.bedrock(e.Dim)
 					curDim.Store(e.Dim)
 					for eid := range ents {
 						send(&packet.RemoveActor{EntityUniqueID: int64(eid)})
@@ -1032,14 +1038,23 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					}
 					clear(skipped)
 					clear(pendingItems)
-					send(&packet.ChangeDimension{Dimension: e.Dim, Position: mgl32.Vec3{0, 32767, 0}, Respawn: true})
-					send(&packet.StopSound{StopAll: true})
-					send(&packet.PlayerAction{EntityRuntimeID: rt(welcome.EID), ActionType: protocol.PlayerActionDimensionChangeDone})
-					for dx := int32(-3); dx <= 3; dx++ {
-						for dz := int32(-3); dz <= 3; dz++ {
-							send(emptyChunk(e.Dim, dx, dz))
-							send(&packet.UpdateBlock{Position: protocol.BlockPos{dx << 4, 80, dz << 4},
-								NewBlockRuntimeID: bedrockBlockRID(1), Flags: packet.BlockUpdateNetwork})
+					// Two engine dimensions shown as one Bedrock dimension: the
+					// client must leave it first or it keeps the old terrain
+					// (Geyser's fastSwitchDimension through a temporary one).
+					steps := []int32{to}
+					if from == to {
+						steps = []int32{temporaryDim(from), to}
+					}
+					for _, bd := range steps {
+						send(&packet.ChangeDimension{Dimension: bd, Position: mgl32.Vec3{0, 32767, 0}, Respawn: true})
+						send(&packet.StopSound{StopAll: true})
+						send(&packet.PlayerAction{EntityRuntimeID: rt(welcome.EID), ActionType: protocol.PlayerActionDimensionChangeDone})
+						for dx := int32(-3); dx <= 3; dx++ {
+							for dz := int32(-3); dz <= 3; dz++ {
+								send(emptyChunk(bd, dx, dz))
+								send(&packet.UpdateBlock{Position: protocol.BlockPos{dx << 4, 80, dz << 4},
+									NewBlockRuntimeID: bedrockBlockRID(1), Flags: packet.BlockUpdateNetwork})
+							}
 						}
 					}
 				}
@@ -1261,7 +1276,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						Front: ed.Front, Lines: signLines(text)})
 				}
 			case *packet.MapInfoRequest:
-				if pk := maps.get(int32(p.MapID), curDim.Load()); pk != nil {
+				if pk := maps.get(int32(p.MapID), dims.bedrock(curDim.Load())); pk != nil {
 					send(pk)
 				}
 			case *packet.LecternUpdate:
