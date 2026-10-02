@@ -39,7 +39,19 @@ type Server struct {
 	AuthDisabled bool           // XBL authentication off (dev / offline probes)
 	Access       *access.Client // nil = open (dev only)
 
+	// SkullSkins fetches the skins player heads wear (skulls.go); nil =
+	// Mojang's texture server over HTTPS.
+	SkullSkins SkinFetcher
+
 	skins skinStore // Bedrock players' own skins, for each other's player lists
+}
+
+// skullSkins is the configured skin fetcher, or the texture server.
+func (s *Server) skullSkins() SkinFetcher {
+	if s.SkullSkins != nil {
+		return s.SkullSkins
+	}
+	return httpSkins{}
 }
 
 func (s *Server) Run(ctx context.Context) error {

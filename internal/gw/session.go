@@ -264,6 +264,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 		})
 	}
 	publish(pos.X, pos.Y, pos.Z, viewDist.Load())
+	// Owned player heads in view, as fake players wearing the owner's skin.
+	skulls := newSkullCache(send, s.skullSkins())
+	skulls.moved(pos.X, pos.Y, pos.Z)
 	if err := b.Write(attach.MsgWant, attach.Want{CX: ccx, CZ: ccz, Radius: viewDist.Load(), Dim: welcome.Dim}); err != nil {
 		return err
 	}
@@ -329,6 +332,9 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				}
 				for _, pk := range chunkBlockEntities(h, body, banners) { // signs, banners, campfires
 					send(pk)
+				}
+				for _, sk := range chunkSkulls(h, body) {
+					skulls.put(sk.pos, sk.state, sk.url)
 				}
 			case attach.MsgTime:
 				var t attach.Time
@@ -562,6 +568,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					if p := blockDisplayData(e); p != nil {
 						send(p)
 					}
+					skulls.display(e) // a player head's owner
 				}
 			case attach.MsgShelfItems:
 				var e attach.ShelfItems
@@ -643,6 +650,8 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 						Flags:             packet.BlockUpdateNetwork,
 					})
 					pos := [3]int32{int32(e.X), int32(e.Y), int32(e.Z)}
+					// A broken or turned player head moves or loses its skull.
+					skulls.blockSet(pos, e.State)
 					if isBanner(e.State) { // its layers arrive in their own frame; remember the base for it
 						banners[pos] = bannerBaseFor(e.State)
 					} else {
@@ -1032,6 +1041,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 				if json.Unmarshal(payload, &e) == nil && e.Dim != curDim.Load() {
 					from, to := dims.bedrock(curDim.Load()), dims.bedrock(e.Dim)
 					curDim.Store(e.Dim)
+					skulls.clear()
 					for eid := range ents {
 						send(&packet.RemoveActor{EntityUniqueID: int64(eid)})
 						delete(ents, eid)
@@ -1079,6 +1089,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					return
 				}
 				b.Swap(nw)
+				skulls.clear() // the destination shard sends its own heads
 				pos = wel.Spawn
 				ccx, ccz = int32(math.Floor(pos.X))>>4, int32(math.Floor(pos.Z))>>4
 				curDim.Store(0)
@@ -1192,6 +1203,7 @@ func (s *Server) play(c *minecraft.Conn, w net.Conn, name, uuidStr string, roles
 					continue
 				}
 				lastX, lastY, lastZ, lastYaw, lastPitch, lastOnGround = x, y, z, p.Yaw, p.Pitch, onGround
+				skulls.moved(x, y, z)
 				b.Write(attach.MsgMove, attach.Move{
 					Pos:      attach.Pos{X: x, Y: y, Z: z, Yaw: p.Yaw, Pitch: p.Pitch},
 					OnGround: onGround,
