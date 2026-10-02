@@ -1,6 +1,7 @@
 package gw
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -51,5 +52,36 @@ func TestScoreboard(t *testing.T) {
 	}
 	if b.display(attach.DisplaySlot{Slot: 5, Objective: "x"}) != nil {
 		t.Error("a team-colour slot rendered")
+	}
+}
+
+// A score's own display name (Java set_score's display override) replaces
+// the owner on its line, inside the owner's team decoration; a later score
+// without one clears it, as the vanilla client does. The frame goes through
+// its JSON payload, as the session receives it.
+func TestScoreDisplayName(t *testing.T) {
+	b := newScoreboard()
+	b.objective(attach.Objective{Name: "kills", Method: attach.ObjAdd, Title: "Kills"})
+	b.display(attach.DisplaySlot{Slot: attach.SlotSidebar, Objective: "kills"})
+	raw, _ := json.Marshal(attach.Score{Owner: "Steve", Objective: "kills", Value: 3,
+		Display: &attach.Text{Text: "Captain", Color: "gold", Extra: []attach.Text{{Text: "!"}}}})
+	var e attach.Score
+	if err := json.Unmarshal(raw, &e); err != nil {
+		t.Fatal(err)
+	}
+	pks := b.score(e)
+	if len(pks) != 1 || pks[0].(*packet.SetScore).Entries[0].DisplayName != "§6Captain!" {
+		t.Fatalf("display line %+v", pks)
+	}
+	tm := b.team(attach.Team{Name: "red", Method: attach.TeamAdd, Prefix: "[R] ", Color: 12, Players: []string{"Steve"}})
+	if s := tm[len(tm)-1].(*packet.SetScore); s.Entries[0].DisplayName != "§c[R] §6Captain!" {
+		t.Errorf("team-decorated display %q", s.Entries[0].DisplayName)
+	}
+	pks = b.score(attach.Score{Owner: "Steve", Objective: "kills", Value: 4})
+	if pks[0].(*packet.SetScore).Entries[0].DisplayName != "§c[R] Steve" {
+		t.Errorf("cleared display %q", pks[0].(*packet.SetScore).Entries[0].DisplayName)
+	}
+	if got := plainText(attach.Text{Translate: "k.x", Fallback: "Fb"}); got != "Fb" {
+		t.Errorf("translate fallback %q", got)
 	}
 }

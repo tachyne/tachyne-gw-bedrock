@@ -30,6 +30,9 @@ type sbObjective struct {
 	title  string
 	hearts bool
 	scores map[string]int32 // by owner
+	// display holds the owners whose score carries its own display name
+	// (Java's set_score display override), already flattened to § text.
+	display map[string]string
 }
 
 type sbTeam struct {
@@ -60,12 +63,56 @@ func entryID(objective, owner string) int64 {
 
 // decorate is an owner's name as its team shows it.
 func (b *scoreboard) decorate(owner string) string {
+	return b.decorateAs(owner, owner)
+}
+
+// decorateAs is an owner's line text: the score's own display name when it
+// has one (else the owner), wrapped in the owner's team prefix and suffix
+// — vanilla's sidebar formats ownerName() (display or owner) for the team.
+func (b *scoreboard) decorateAs(owner, shown string) string {
 	for _, t := range b.teams {
 		if t.players[owner] {
-			return t.colour + t.prefix + owner + t.suffix
+			return t.colour + t.prefix + shown + t.suffix
 		}
 	}
-	return owner
+	return shown
+}
+
+// line is one owner's text in one objective.
+func (b *scoreboard) line(o *sbObjective, owner string) string {
+	if d, ok := o.display[owner]; ok {
+		return b.decorateAs(owner, d)
+	}
+	return b.decorate(owner)
+}
+
+// chatColours are Bedrock's colour codes by Java's ChatFormatting colour name.
+var chatColours = map[string]string{
+	"black": "§0", "dark_blue": "§1", "dark_green": "§2", "dark_aqua": "§3", "dark_red": "§4",
+	"dark_purple": "§5", "gold": "§6", "gray": "§7", "dark_gray": "§8", "blue": "§9",
+	"green": "§a", "aqua": "§b", "red": "§c", "light_purple": "§d", "yellow": "§e", "white": "§f",
+}
+
+// plainText flattens a Java text component into Bedrock § text: literal
+// text, a translate key's fallback (or the key itself), named colours as
+// § codes, and the extra siblings in order.
+func plainText(t attach.Text) string {
+	var s string
+	if c, ok := chatColours[t.Color]; ok {
+		s = c
+	}
+	switch {
+	case t.Translate != "" && t.Fallback != "":
+		s += t.Fallback
+	case t.Translate != "":
+		s += t.Translate
+	default:
+		s += t.Text
+	}
+	for _, x := range t.Extra {
+		s += plainText(x)
+	}
+	return s
 }
 
 // objective folds an objective frame in; the packets re-show it where it
@@ -87,7 +134,7 @@ func (b *scoreboard) objective(e attach.Objective) []packet.Packet {
 	default:
 		o := b.objectives[e.Name]
 		if o == nil {
-			o = &sbObjective{scores: map[string]int32{}}
+			o = &sbObjective{scores: map[string]int32{}, display: map[string]string{}}
 			b.objectives[e.Name] = o
 		}
 		o.title, o.hearts = e.Title, e.Hearts
@@ -114,7 +161,7 @@ func (b *scoreboard) display(e attach.DisplaySlot) []packet.Packet {
 	b.slots[e.Slot] = e.Objective
 	o := b.objectives[e.Objective]
 	if o == nil {
-		o = &sbObjective{scores: map[string]int32{}}
+		o = &sbObjective{scores: map[string]int32{}, display: map[string]string{}}
 		b.objectives[e.Objective] = o
 	}
 	out = append(out, b.showIn(bedrockSlot, e.Objective, o)...)
@@ -131,14 +178,22 @@ func (b *scoreboard) score(e attach.Score) []packet.Packet {
 	}
 	if e.Reset {
 		delete(o.scores, e.Owner)
+		delete(o.display, e.Owner)
 	} else {
 		o.scores[e.Owner] = e.Value
+		// The packet's display replaces the override outright: absent clears
+		// it, as the vanilla client's handleSetScore does.
+		if e.Display != nil {
+			o.display[e.Owner] = plainText(*e.Display)
+		} else {
+			delete(o.display, e.Owner)
+		}
 	}
 	if !b.shown(e.Objective) {
 		return nil
 	}
 	entry := protocol.ScoreboardEntry{EntryID: entryID(e.Objective, e.Owner), ObjectiveName: e.Objective, Score: e.Value,
-		IdentityType: protocol.ScoreboardIdentityFakePlayer, DisplayName: b.decorate(e.Owner)}
+		IdentityType: protocol.ScoreboardIdentityFakePlayer, DisplayName: b.line(o, e.Owner)}
 	if e.Reset { // a removal is an entry of its own kind since 1.26.50
 		entry.IdentityType = protocol.ScoreboardIdentityRemove
 	}
@@ -227,7 +282,7 @@ func (b *scoreboard) showIn(slot, name string, o *sbObjective) []packet.Packet {
 	var entries []protocol.ScoreboardEntry
 	for owner, v := range o.scores {
 		entries = append(entries, protocol.ScoreboardEntry{EntryID: entryID(name, owner), ObjectiveName: name, Score: v,
-			IdentityType: protocol.ScoreboardIdentityFakePlayer, DisplayName: b.decorate(owner)})
+			IdentityType: protocol.ScoreboardIdentityFakePlayer, DisplayName: b.line(o, owner)})
 	}
 	if len(entries) > 0 {
 		out = append(out, &packet.SetScore{Entries: entries})
